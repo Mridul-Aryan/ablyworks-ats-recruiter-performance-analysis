@@ -1,0 +1,6 @@
+# Ignore python cache
+__pycache__/
+*.pyc
+
+# Ignore database connection files containing passwords
+dbConnections.py
