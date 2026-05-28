@@ -1,0 +1,2430 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AblyWorks ATS — Recruiter Analytics Dashboard</title>
+  <meta name="description"
+    content="AI-powered recruiter performance analytics dashboard with ML gap analysis, pipeline funnel, and actionable recommendations.">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap"
+    rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
+  <style>
+    /* ═══════════════════════════════════════════
+       DESIGN SYSTEM — Light Professional Theme
+       ═══════════════════════════════════════════ */
+    :root {
+      --bg-deep: #F8FAFC;
+      --bg-base: #F1F5F9;
+      --bg-surface: #FFFFFF;
+      --bg-surface-hover: #F8FAFC;
+      --bg-surface-active: #F1F5F9;
+      --border: #E2E8F0;
+      --border-hover: #CBD5E1;
+      --primary: #0A66C2;
+      --primary-glow: rgba(10, 102, 194, 0.08);
+      --secondary: #06B6D4;
+      --secondary-glow: rgba(6, 182, 212, 0.08);
+      --accent: #059669;
+      --accent-glow: rgba(5, 150, 105, 0.08);
+      --danger: #DC2626;
+      --danger-glow: rgba(220, 38, 38, 0.08);
+      --warning: #D97706;
+      --warning-glow: rgba(217, 119, 6, 0.08);
+      --cyan: #06B6D4;
+      --rose: #E11D48;
+      --orange: #EA580C;
+      --text: #1E293B;
+      --text-secondary: #475569;
+      --text-muted: #64748b;
+      --sidebar-w: 260px;
+      --radius: 12px;
+      --radius-sm: 8px;
+      --radius-xs: 6px;
+      --transition: 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
+    *,
+    *::before,
+    *::after {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    html {
+      font-size: 14px;
+    }
+
+    body {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      background: var(--bg-deep);
+      color: var(--text);
+      min-height: 100vh;
+      overflow-x: hidden;
+    }
+
+    /* Subtle background pattern */
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      z-index: 0;
+      background:
+        radial-gradient(ellipse 80% 60% at 10% 20%, rgba(10, 102, 194, 0.03) 0%, transparent 60%),
+        radial-gradient(ellipse 60% 50% at 90% 80%, rgba(6, 182, 212, 0.03) 0%, transparent 60%);
+      pointer-events: none;
+    }
+
+    /* Custom scrollbar */
+    ::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+
+    ::-webkit-scrollbar-track {
+      background: transparent;
+    }
+
+    ::-webkit-scrollbar-thumb {
+      background: rgba(0, 0, 0, 0.15);
+      border-radius: 3px;
+    }
+
+    ::-webkit-scrollbar-thumb:hover {
+      background: rgba(0, 0, 0, 0.25);
+    }
+
+    /* ═══════════════════════════════════════════
+       LAYOUT
+       ═══════════════════════════════════════════ */
+    .app {
+      display: flex;
+      min-height: 100vh;
+      position: relative;
+      z-index: 1;
+    }
+
+    /* Sidebar */
+    .sidebar {
+      width: var(--sidebar-w);
+      min-height: 100vh;
+      position: fixed;
+      left: 0;
+      top: 0;
+      background: #008740;
+      border-right: 1px solid rgba(0, 0, 0, 0.15);
+      display: flex;
+      flex-direction: column;
+      z-index: 100;
+      transition: transform var(--transition);
+    }
+
+    .sidebar-brand {
+      padding: 24px 20px 20px;
+      border-bottom: 1px solid rgba(0, 0, 0, 0.15);
+    }
+
+    .sidebar-brand h1 {
+      font-size: 1.4rem;
+      font-weight: 800;
+      color: #FFFFFF;
+      letter-spacing: -0.5px;
+    }
+
+    .sidebar-brand p {
+      font-size: 0.75rem;
+      color: rgba(255, 255, 255, 0.7);
+      margin-top: 4px;
+      letter-spacing: 1.5px;
+      text-transform: uppercase;
+    }
+
+    .sidebar-nav {
+      flex: 1;
+      padding: 12px 10px;
+      overflow-y: auto;
+    }
+
+    .nav-item {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 11px 14px;
+      border-radius: var(--radius-sm);
+      color: rgba(255, 255, 255, 0.75);
+      cursor: pointer;
+      transition: all var(--transition);
+      font-size: 0.9rem;
+      font-weight: 500;
+      position: relative;
+      margin-bottom: 2px;
+      text-decoration: none;
+    }
+
+    .nav-item:hover {
+      color: #FFFFFF;
+      background: rgba(255, 255, 255, 0.08);
+    }
+
+    .nav-item.active {
+      color: #FFFFFF;
+      background: rgba(255, 255, 255, 0.15);
+      box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.25);
+    }
+
+    .nav-item.active::before {
+      content: '';
+      position: absolute;
+      left: 0;
+      top: 50%;
+      transform: translateY(-50%);
+      width: 3px;
+      height: 60%;
+      border-radius: 0 3px 3px 0;
+      background: #FFFFFF;
+    }
+
+    .nav-icon {
+      font-size: 1.15rem;
+      width: 28px;
+      height: 28px;
+      text-align: center;
+      flex-shrink: 0;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .sidebar-icon {
+      width: 30px;
+      height: 30px;
+      min-width: 30px;
+      min-height: 30px;
+      object-fit: contain;
+      zoom: 1.4;
+      /*opacity: 0.8;*/
+      transition: opacity var(--transition);
+    }
+
+    .nav-item:hover .sidebar-icon,
+    .nav-item.active .sidebar-icon {
+      opacity: 1;
+    }
+
+    .zoom-extra-icon {
+
+      transform: scale(1);
+
+    }
+
+    .sidebar-footer {
+      padding: 16px 20px;
+      border-top: 1px solid rgba(0, 0, 0, 0.15);
+      font-size: 0.7rem;
+      color: rgba(255, 255, 255, 0.6);
+      text-align: center;
+    }
+
+    /* Main */
+    .main {
+      flex: 1;
+      margin-left: var(--sidebar-w);
+      padding: 28px 32px 40px;
+      min-height: 100vh;
+    }
+
+    /* ═══════════════════════════════════════════
+       SECTIONS
+       ═══════════════════════════════════════════ */
+    .section {
+      display: none;
+      animation: fadeIn 0.4s ease;
+    }
+
+    .section.active {
+      display: block;
+    }
+
+    @keyframes fadeIn {
+      from {
+        opacity: 0;
+        transform: translateY(10px);
+      }
+
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    .section-header {
+      margin-bottom: 28px;
+    }
+
+    .section-header h2 {
+      font-size: 1.8rem;
+      font-weight: 800;
+      color: #0F172A;
+      letter-spacing: -0.5px;
+    }
+
+    .section-header p {
+      color: var(--text-muted);
+      margin-top: 4px;
+      font-size: 0.9rem;
+    }
+
+    /* ═══════════════════════════════════════════
+       CARDS
+       ═══════════════════════════════════════════ */
+    .card {
+      background: #FFFFFF;
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 24px;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+      transition: all var(--transition);
+    }
+
+    .card:hover {
+      border-color: var(--border-hover);
+      transform: translateY(-2px);
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.08);
+    }
+
+    .card-title {
+      font-size: 0.8rem;
+      font-weight: 600;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      margin-bottom: 16px;
+    }
+
+    /* ═══════════════════════════════════════════
+       KPI CARDS
+       ═══════════════════════════════════════════ */
+    .kpi-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 16px;
+      margin-bottom: 28px;
+    }
+
+    .kpi-card {
+      background: #FFFFFF;
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 20px 22px;
+      position: relative;
+      overflow: hidden;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+      transition: all var(--transition);
+    }
+
+    .kpi-card:hover {
+      transform: translateY(-3px);
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.08);
+      border-color: var(--border-hover);
+    }
+
+    .kpi-card::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 3px;
+      background: var(--kpi-color, var(--primary));
+      border-radius: var(--radius) var(--radius) 0 0;
+    }
+
+    .kpi-card .kpi-icon {
+      font-size: 1.6rem;
+      margin-bottom: 10px;
+      display: block;
+      filter: grayscale(0.2);
+    }
+
+    .kpi-card .kpi-value {
+      font-size: 2rem;
+      font-weight: 800;
+      color: #0F172A;
+      letter-spacing: -1px;
+      line-height: 1;
+    }
+
+    .kpi-card .kpi-label {
+      font-size: 0.78rem;
+      color: var(--text-muted);
+      margin-top: 6px;
+      font-weight: 500;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .kpi-card .kpi-sub {
+      font-size: 0.75rem;
+      color: var(--text-secondary);
+      margin-top: 8px;
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+
+    .kpi-card .kpi-sub .up {
+      color: var(--accent);
+    }
+
+    .kpi-card .kpi-sub .down {
+      color: var(--danger);
+    }
+
+    /* ═══════════════════════════════════════════
+       GRID LAYOUTS
+       ═══════════════════════════════════════════ */
+    .grid-2 {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 20px;
+      margin-bottom: 24px;
+    }
+
+    .grid-3 {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 20px;
+      margin-bottom: 24px;
+    }
+
+    .grid-2-1 {
+      display: grid;
+      grid-template-columns: 2fr 1fr;
+      gap: 20px;
+      margin-bottom: 24px;
+    }
+
+    .grid-1-2 {
+      display: grid;
+      grid-template-columns: 1fr 2fr;
+      gap: 20px;
+      margin-bottom: 24px;
+    }
+
+    /* ═══════════════════════════════════════════
+       TABLES
+       ═══════════════════════════════════════════ */
+    .data-table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+
+    .data-table th {
+      text-align: left;
+      padding: 12px 14px;
+      font-size: 0.72rem;
+      font-weight: 600;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      border-bottom: 2px solid var(--border);
+      background: #F8FAFC;
+    }
+
+    .data-table td {
+      padding: 12px 14px;
+      font-size: 0.88rem;
+      border-bottom: 1px solid #F1F5F9;
+      vertical-align: middle;
+    }
+
+    .data-table tbody tr {
+      transition: background var(--transition);
+    }
+
+    .data-table tbody tr:hover {
+      background: #F8FAFC;
+    }
+
+    /* ═══════════════════════════════════════════
+       BADGES
+       ═══════════════════════════════════════════ */
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 3px 10px;
+      border-radius: 20px;
+      font-size: 0.7rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .badge-low {
+      background: var(--accent-glow);
+      color: var(--accent);
+      border: 1px solid rgba(16, 185, 129, 0.2);
+    }
+
+    .badge-medium {
+      background: var(--warning-glow);
+      color: var(--warning);
+      border: 1px solid rgba(245, 158, 11, 0.2);
+    }
+
+    .badge-high {
+      background: var(--danger-glow);
+      color: var(--danger);
+      border: 1px solid rgba(239, 68, 68, 0.2);
+    }
+
+    .badge-joined {
+      background: var(--accent-glow);
+      color: var(--accent);
+    }
+
+    .badge-dropped {
+      background: var(--warning-glow);
+      color: var(--warning);
+    }
+
+    .badge-nooffer {
+      background: rgba(100, 116, 139, 0.15);
+      color: var(--text-muted);
+    }
+
+    /* Score bar */
+    .score-bar-wrap {
+      width: 100px;
+      height: 6px;
+      background: #E2E8F0;
+      border-radius: 3px;
+      overflow: hidden;
+    }
+
+    .score-bar {
+      height: 100%;
+      border-radius: 3px;
+      background: linear-gradient(90deg, #0A66C2, #06B6D4);
+      transition: width 1s ease;
+    }
+
+    /* ═══════════════════════════════════════════
+       FUNNEL
+       ═══════════════════════════════════════════ */
+    .funnel {
+      max-width: 700px;
+      margin: 0 auto;
+    }
+
+    .funnel-stage {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin: 0 auto 6px;
+      padding: 14px 24px;
+      border-radius: var(--radius-sm);
+      transition: all var(--transition);
+      position: relative;
+      overflow: hidden;
+    }
+
+    .funnel-stage:hover {
+      transform: scale(1.02);
+      filter: brightness(1.15);
+    }
+
+    .funnel-stage .funnel-label {
+      font-weight: 600;
+      font-size: 0.9rem;
+      z-index: 1;
+    }
+
+    .funnel-stage .funnel-count {
+      font-weight: 800;
+      font-size: 1.2rem;
+      z-index: 1;
+    }
+
+    .funnel-stage .funnel-rate {
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      margin-left: 8px;
+      z-index: 1;
+    }
+
+    /* ═══════════════════════════════════════════
+       DEEP DIVE
+       ═══════════════════════════════════════════ */
+    .select-wrap {
+      position: relative;
+      display: inline-block;
+      margin-bottom: 24px;
+    }
+
+    .select-wrap select {
+      appearance: none;
+      background: var(--bg-surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      color: var(--text);
+      padding: 10px 40px 10px 16px;
+      font-family: inherit;
+      font-size: 0.95rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all var(--transition);
+      min-width: 220px;
+    }
+
+    .select-wrap select:hover {
+      border-color: var(--primary);
+    }
+
+    .select-wrap select:focus {
+      outline: none;
+      border-color: var(--primary);
+      box-shadow: 0 0 0 3px var(--primary-glow);
+    }
+
+    .select-wrap::after {
+      content: '▾';
+      position: absolute;
+      right: 14px;
+      top: 50%;
+      transform: translateY(-50%);
+      color: var(--text-muted);
+      pointer-events: none;
+    }
+
+    /* Recommendation cards */
+    .rec-card {
+      background: var(--bg-surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 20px;
+      margin-bottom: 12px;
+      transition: all var(--transition);
+      border-left: 3px solid var(--primary);
+    }
+
+    .rec-card:hover {
+      background: var(--bg-surface-hover);
+      border-color: var(--border-hover);
+      transform: translateX(4px);
+    }
+
+    .rec-card .rec-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 10px;
+    }
+
+    .rec-card .rec-category {
+      font-size: 0.72rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      color: var(--primary);
+    }
+
+    .rec-card .rec-priority {
+      font-size: 0.68rem;
+      font-weight: 700;
+      padding: 2px 8px;
+      border-radius: 10px;
+      background: var(--primary-glow);
+      color: var(--primary);
+    }
+
+    .rec-card .rec-finding {
+      font-size: 0.88rem;
+      color: var(--text);
+      margin-bottom: 8px;
+      line-height: 1.5;
+    }
+
+    .rec-card .rec-action {
+      font-size: 0.82rem;
+      color: var(--accent);
+      margin-bottom: 6px;
+    }
+
+    .rec-card .rec-lift {
+      font-size: 0.78rem;
+      color: var(--text-muted);
+    }
+
+    .rec-card .rec-confidence {
+      font-size: 0.7rem;
+      color: var(--text-muted);
+      margin-top: 6px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .rec-card .conf-bar {
+      width: 60px;
+      height: 4px;
+      background: #E2E8F0;
+      border-radius: 2px;
+      overflow: hidden;
+    }
+
+    .rec-card .conf-fill {
+      height: 100%;
+      border-radius: 2px;
+      background: var(--primary);
+    }
+
+    /* Risk gauge */
+    .risk-gauge {
+      text-align: center;
+      padding: 20px;
+    }
+
+    .risk-gauge .gauge-value {
+      font-size: 3rem;
+      font-weight: 900;
+      line-height: 1;
+    }
+
+    .risk-gauge .gauge-label {
+      font-size: 0.82rem;
+      color: var(--text-muted);
+      margin-top: 6px;
+    }
+
+    .risk-gauge .gauge-risk {
+      margin-top: 12px;
+      font-size: 1rem;
+      font-weight: 700;
+    }
+
+    /* Chart containers */
+    .chart-wrap {
+      position: relative;
+      width: 100%;
+    }
+
+    .chart-wrap canvas {
+      width: 100% !important;
+    }
+
+    /* ═══════════════════════════════════════════
+       LOADING / ERROR
+       ═══════════════════════════════════════════ */
+    .loading-overlay {
+      position: fixed;
+      inset: 0;
+      z-index: 1000;
+      background: var(--bg-deep);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      transition: opacity 0.5s ease;
+    }
+
+    .loading-overlay.hide {
+      opacity: 0;
+      pointer-events: none;
+    }
+
+    .loader {
+      width: 48px;
+      height: 48px;
+      border: 3px solid rgba(255, 255, 255, 0.1);
+      border-top-color: var(--primary);
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+    }
+
+    @keyframes spin {
+      to {
+        transform: rotate(360deg);
+      }
+    }
+
+    .loading-text {
+      margin-top: 16px;
+      color: var(--text-secondary);
+      font-size: 0.9rem;
+      font-weight: 500;
+    }
+
+    /* ═══════════════════════════════════════════
+       MISC
+       ═══════════════════════════════════════════ */
+    .tag {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 4px;
+      font-size: 0.72rem;
+      font-weight: 600;
+      background: rgba(79, 142, 247, 0.1);
+      color: var(--primary);
+      margin: 2px;
+    }
+
+    .divider {
+      height: 1px;
+      background: var(--border);
+      margin: 20px 0;
+    }
+
+    .text-center {
+      text-align: center;
+    }
+
+    .text-right {
+      text-align: right;
+    }
+
+    .flex-between {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .gap-12 {
+      gap: 12px;
+    }
+
+    .mb-24 {
+      margin-bottom: 24px;
+    }
+
+    .mt-16 {
+      margin-top: 16px;
+    }
+
+    /* Animated counter */
+    @keyframes countPulse {
+
+      0%,
+      100% {
+        transform: scale(1);
+      }
+
+      50% {
+        transform: scale(1.05);
+      }
+    }
+
+    /* KPI bar in deep-dive */
+    .kpi-bars {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .kpi-bar-item {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .kpi-bar-label {
+      width: 180px;
+      font-size: 0.8rem;
+      color: var(--text-secondary);
+      flex-shrink: 0;
+    }
+
+    .kpi-bar-track {
+      flex: 1;
+      height: 10px;
+      background: rgba(255, 255, 255, 0.06);
+      border-radius: 5px;
+      overflow: hidden;
+    }
+
+    .kpi-bar-fill {
+      height: 100%;
+      border-radius: 5px;
+      transition: width 1.2s ease;
+      background: linear-gradient(90deg, var(--primary), var(--secondary));
+    }
+
+    .kpi-bar-fill.warn {
+      background: linear-gradient(90deg, var(--warning), var(--orange));
+    }
+
+    .kpi-bar-fill.danger {
+      background: linear-gradient(90deg, var(--danger), var(--rose));
+    }
+
+    .kpi-bar-fill.good {
+      background: linear-gradient(90deg, var(--accent), var(--cyan));
+    }
+
+    .kpi-bar-val {
+      width: 50px;
+      text-align: right;
+      font-size: 0.85rem;
+      font-weight: 700;
+      color: var(--text);
+    }
+
+    /* Responsive */
+    @media (max-width: 1200px) {
+
+      .grid-2,
+      .grid-2-1,
+      .grid-1-2,
+      .grid-3 {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    @media (max-width: 768px) {
+      .sidebar {
+        transform: translateX(-100%);
+      }
+
+      .sidebar.open {
+        transform: translateX(0);
+      }
+
+      .main {
+        margin-left: 0;
+        padding: 20px 16px;
+      }
+
+      .kpi-grid {
+        grid-template-columns: repeat(2, 1fr);
+      }
+    }
+
+    /* Trend indicator */
+    .trend-up {
+      color: var(--accent);
+    }
+
+    .trend-down {
+      color: var(--danger);
+    }
+
+    .trend-stable {
+      color: var(--text-muted);
+    }
+
+    /* AI insight cards */
+    .insight-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+      gap: 16px;
+    }
+  </style>
+</head>
+
+<body>
+
+  <!-- Loading Overlay -->
+  <div class="loading-overlay" id="loadingOverlay">
+    <div class="loader"></div>
+    <div class="loading-text">Loading ATS Analytics…</div>
+  </div>
+
+  <div class="app">
+    <!-- ═══════════════ SIDEBAR ═══════════════ -->
+    <aside class="sidebar" id="sidebar">
+      <div class="sidebar-brand">
+        <h1>AblyWorks</h1>
+        <p>ATS Analytics</p>
+      </div>
+      <nav class="sidebar-nav">
+        <div class="nav-item active" data-section="overview">
+          <span class="nav-icon"><img src="Icons/Overview.png" class="sidebar-icon zoom-extra-icon"
+              alt="Overview" /></span> Overview
+        </div>
+        <div class="nav-item" data-section="leaderboard">
+          <span class="nav-icon"><img src="Icons/leaderboard.svg" class="sidebar-icon zoom-extra-icon"
+              alt=" Leaderboard" /></span>
+          Leaderboard
+        </div>
+        <div class="nav-item" data-section="pipeline">
+          <span class="nav-icon"><img src="Icons/Pipeline.png" class="sidebar-icon" alt="Pipeline" /></span> Pipeline
+        </div>
+        <div class="nav-item" data-section="deepdive">
+          <span class="nav-icon"><img src="Icons/deep%20dive.png" class="sidebar-icon" alt="Deep Dive" /></span> Deep
+          Dive
+        </div>
+        <div class="nav-item" data-section="clients">
+          <span class="nav-icon"><img src="Icons/Client.png" class="sidebar-icon" alt="Clients" /></span> Clients
+        </div>
+        <div class="nav-item" data-section="roles">
+          <span class="nav-icon"><img src="Icons/Roles.png" class="sidebar-icon" alt="Roles" /></span> Roles
+        </div>
+        <div class="nav-item" data-section="rejections">
+          <span class="nav-icon"><img src="Icons/rejection.png" class="sidebar-icon" alt="Rejections" /></span>
+          Rejections
+        </div>
+        <div class="nav-item" data-section="trends">
+          <span class="nav-icon"><img src="Icons/trends.png" class="sidebar-icon" alt="Trends" /></span> Trends
+        </div>
+        <div class="nav-item" data-section="insights">
+          <span class="nav-icon"><img src="Icons/Ai%20insights.png" class="sidebar-icon" alt="AI Insights" /></span> AI
+          Insights
+        </div>
+      </nav>
+      <div class="sidebar-footer">
+        Powered by ML Gap Analysis Engine<br>© 2026 AblyWorks
+      </div>
+    </aside>
+
+    <!-- ═══════════════ MAIN CONTENT ═══════════════ -->
+    <main class="main">
+
+      <!-- ── OVERVIEW ── -->
+      <div class="section active" id="sec-overview">
+        <div class="section-header">
+          <h2>Executive Overview</h2>
+          <p>Real-time recruiter performance analytics & pipeline health</p>
+        </div>
+        <div class="kpi-grid" id="overviewKpis"></div>
+        <div class="grid-2">
+          <div class="card">
+            <div class="card-title">Pipeline Funnel (All Recruiters)</div>
+            <div class="chart-wrap" style="height:280px"><canvas id="overviewFunnelChart"></canvas></div>
+          </div>
+          <div class="card">
+            <div class="card-title">Monthly Submission Trend</div>
+            <div class="chart-wrap" style="height:280px"><canvas id="overviewTrendChart"></canvas></div>
+          </div>
+        </div>
+        <div class="grid-2">
+          <div class="card">
+            <div class="card-title">Top Performers (by ML Score)</div>
+            <div id="overviewTopPerformers"></div>
+          </div>
+          <div class="card">
+            <div class="card-title">Rejection Reasons Breakdown</div>
+            <div class="chart-wrap" style="height:250px"><canvas id="overviewRejectionChart"></canvas></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── LEADERBOARD ── -->
+      <div class="section" id="sec-leaderboard">
+        <div class="section-header">
+          <h2>Recruiter Leaderboard</h2>
+          <p>ML-powered productivity scores, risk assessment, and KPI comparison</p>
+        </div>
+        <div class="card">
+          <div id="leaderboardTable"></div>
+        </div>
+      </div>
+
+      <!-- ── PIPELINE ── -->
+      <div class="section" id="sec-pipeline">
+        <div class="section-header">
+          <h2>Recruitment Pipeline</h2>
+          <p>End-to-end candidate journey funnel with conversion rates</p>
+        </div>
+        <div class="card mb-24">
+          <div class="card-title">Hiring Funnel</div>
+          <div id="pipelineFunnel"></div>
+        </div>
+        <div class="grid-2">
+          <div class="card">
+            <div class="card-title">Stage Conversion Rates</div>
+            <div class="chart-wrap" style="height:300px"><canvas id="pipelineConversionChart"></canvas></div>
+          </div>
+          <div class="card">
+            <div class="card-title">Drop-off at Each Stage</div>
+            <div class="chart-wrap" style="height:300px"><canvas id="pipelineDropoffChart"></canvas></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── DEEP DIVE ── -->
+      <div class="section" id="sec-deepdive">
+        <div class="section-header">
+          <h2>Recruiter Deep Dive</h2>
+          <p>Individual performance analysis with ML-powered gap recommendations</p>
+        </div>
+        <div class="select-wrap">
+          <select id="recruiterSelect"></select>
+        </div>
+        <div class="grid-2 mb-24">
+          <div class="card">
+            <div class="card-title">Performance Radar</div>
+            <div class="chart-wrap" style="height:320px"><canvas id="deepdiveRadar"></canvas></div>
+          </div>
+          <div class="card">
+            <div class="risk-gauge" id="deepdiveGauge"></div>
+          </div>
+        </div>
+        <div class="card mb-24">
+          <div class="card-title">KPI Breakdown</div>
+          <div class="kpi-bars" id="deepdiveKpiBars"></div>
+        </div>
+        <div class="section-header" style="margin-top:8px">
+          <h2 style="font-size:1.3rem">🧠 AI Recommendations</h2>
+          <p>Ranked actionable insights from the Gap Analysis Engine</p>
+        </div>
+        <div id="deepdiveRecs"></div>
+      </div>
+
+      <!-- ── CLIENTS ── -->
+      <div class="section" id="sec-clients">
+        <div class="section-header">
+          <h2>Client Analytics</h2>
+          <p>Submission volume and success rates by client organization</p>
+        </div>
+        <div class="grid-2">
+          <div class="card">
+            <div class="card-title">Submissions by Client</div>
+            <div class="chart-wrap" style="height:340px"><canvas id="clientSubmissionsChart"></canvas></div>
+          </div>
+          <div class="card">
+            <div class="card-title">Client Success Rate (Joined / Submitted)</div>
+            <div class="chart-wrap" style="height:340px"><canvas id="clientSuccessChart"></canvas></div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-title">Client Performance Summary</div>
+          <div id="clientTable"></div>
+        </div>
+      </div>
+
+      <!-- ── ROLES ── -->
+      <div class="section" id="sec-roles">
+        <div class="section-header">
+          <h2>Role Distribution</h2>
+          <p>Job role analytics with interview and offer conversion metrics</p>
+        </div>
+        <div class="grid-2">
+          <div class="card">
+            <div class="card-title">Submissions by Role</div>
+            <div class="chart-wrap" style="height:340px"><canvas id="roleDistChart"></canvas></div>
+          </div>
+          <div class="card">
+            <div class="card-title">Offer Rate by Role</div>
+            <div class="chart-wrap" style="height:340px"><canvas id="roleOfferChart"></canvas></div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-title">Role Performance Summary</div>
+          <div id="roleTable"></div>
+        </div>
+      </div>
+
+      <!-- ── REJECTIONS ── -->
+      <div class="section" id="sec-rejections">
+        <div class="section-header">
+          <h2>Rejection & Drop Analysis</h2>
+          <p>Root-cause analysis of candidate rejections and post-offer drops</p>
+        </div>
+        <div class="grid-2">
+          <div class="card">
+            <div class="card-title">Top Rejection Reasons</div>
+            <div class="chart-wrap" style="height:340px"><canvas id="rejectionReasonsChart"></canvas></div>
+          </div>
+          <div class="card">
+            <div class="card-title">Candidate Drop Reasons</div>
+            <div class="chart-wrap" style="height:340px"><canvas id="dropReasonsChart"></canvas></div>
+          </div>
+        </div>
+        <div class="grid-2">
+          <div class="card">
+            <div class="card-title">Rejections by Recruiter</div>
+            <div class="chart-wrap" style="height:300px"><canvas id="rejectionByRecruiterChart"></canvas></div>
+          </div>
+          <div class="card">
+            <div class="card-title">Rejection Reason × Recruiter Heatmap</div>
+            <div id="rejectionHeatmap"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── TRENDS ── -->
+      <div class="section" id="sec-trends">
+        <div class="section-header">
+          <h2>Monthly Trends</h2>
+          <p>Time-series analysis of submissions, interviews, offers, and joinings</p>
+        </div>
+        <div class="card mb-24">
+          <div class="card-title">Submissions, Shortlists, Offers & Joinings Over Time</div>
+          <div class="chart-wrap" style="height:380px"><canvas id="monthlyTrendChart"></canvas></div>
+        </div>
+        <div class="grid-2">
+          <div class="card">
+            <div class="card-title">Recruiter Submissions Over Time</div>
+            <div class="chart-wrap" style="height:300px"><canvas id="recruiterTrendChart"></canvas></div>
+          </div>
+          <div class="card">
+            <div class="card-title">Average Skill Match Score Over Time</div>
+            <div class="chart-wrap" style="height:300px"><canvas id="skillTrendChart"></canvas></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── AI INSIGHTS ── -->
+      <div class="section" id="sec-insights">
+        <div class="section-header">
+          <h2>🧠 AI-Powered Insights</h2>
+          <p>ML Gap Analysis Engine recommendations for the entire team</p>
+        </div>
+        <div id="insightsContent"></div>
+      </div>
+
+    </main>
+  </div>
+
+  <script>
+    /* ═══════════════════════════════════════════════════════════════════
+       AblyWorks ATS — Dashboard Engine
+       All 6 ML models ported from ml_recommender.py
+       ═══════════════════════════════════════════════════════════════════ */
+
+    // ─── GLOBALS ─────────────────────────────────────────
+    let rawData = [];
+    let recruiterProfiles = [];
+    let chartInstances = {};
+    const CHART_COLORS = ['#4f8ef7', '#7c3aed', '#10b981', '#f59e0b', '#f43f5e', '#06b6d4', '#f97316', '#a78bfa'];
+
+    // ─── DATA LOADING ────────────────────────────────────
+    async function loadData() {
+      try {
+        const resp = await fetch('./ats_recruiter_dataset_1000.csv');
+        const text = await resp.text();
+        const parsed = Papa.parse(text, { header: true, skipEmptyLines: true, dynamicTyping: false });
+        rawData = parsed.data.map(row => ({
+          candidate_id: (row.candidate_id || '').trim(),
+          candidate_name: (row.candidate_name || '').trim(),
+          recruiter: (row.recruiter || '').trim(),
+          recruiter_experience_years: parseFloat(row.recruiter_experience_years) || 0,
+          job_role: (row.job_role || '').trim(),
+          client: (row.client || '').trim(),
+          submission_date: (row.submission_date || '').trim(),
+          submitted: (row.submitted || '').trim().toUpperCase() === 'TRUE',
+          submission_delay_days: parseFloat(row.submission_delay_days) || 0,
+          skill_match_score: parseFloat(row.skill_match_score) || 0,
+          hm_review_status: (row.hm_review_status || '').trim(),
+          shortlisted: (row.shortlisted || '').trim().toUpperCase() === 'TRUE',
+          interview_scheduled: (row.interview_scheduled || '').trim().toUpperCase() === 'TRUE',
+          interview_delay_days: parseFloat(row.interview_delay_days) || 0,
+          followup_delay_days: parseFloat(row.followup_delay_days) || 0,
+          interview_result: (row.interview_result || '').trim(),
+          offer_status: (row.offer_status || '').trim(),
+          joining_status: (row.joining_status || '').trim(),
+          rejection_reason: (row.rejection_reason || '').trim(),
+          candidate_drop_reason: (row.candidate_drop_reason || '').trim(),
+        }));
+        rawData = rawData.filter(r => r.candidate_id);
+        processProfiles();
+        return true;
+      } catch (e) {
+        console.error('Data load error:', e);
+        document.getElementById('loadingOverlay').innerHTML =
+          '<div style="text-align:center;color:#ef4444;"><h2 style="margin-bottom:12px;">Failed to load data</h2>' +
+          '<p style="color:#94a3b8">Ensure ats_recruiter_dataset_1000.csv is served from the same origin.<br>' +
+          'Run: <code style="color:#4f8ef7">npx serve .</code> in the project folder.</p></div>';
+        return false;
+      }
+    }
+
+    // ─── BUILD RECRUITER PROFILES ────────────────────────
+    function processProfiles() {
+      const grouped = {};
+      rawData.forEach(r => {
+        if (!grouped[r.recruiter]) grouped[r.recruiter] = [];
+        grouped[r.recruiter].push(r);
+      });
+
+      recruiterProfiles = Object.entries(grouped).map(([name, rows]) => {
+        const submissions = rows.length;
+        const hmApproved = rows.filter(r => r.hm_review_status === 'Approved').length;
+        const shortlisted = rows.filter(r => r.shortlisted).length;
+        const interviewScheduled = rows.filter(r => r.interview_scheduled).length;
+        const interviewCleared = rows.filter(r => r.interview_result === 'Cleared').length;
+        const offered = rows.filter(r => r.offer_status === 'Yes').length;
+        const joined = rows.filter(r => r.joining_status === 'Joined').length;
+        const dropped = rows.filter(r => r.joining_status === 'Dropped').length;
+        const avgSubmitDelay = rows.reduce((s, r) => s + r.submission_delay_days, 0) / submissions;
+        const avgInterviewDelay = rows.reduce((s, r) => s + r.interview_delay_days, 0) / submissions;
+        const avgSkillMatch = rows.reduce((s, r) => s + r.skill_match_score, 0) / submissions;
+
+        // Compute weekly data from actual dates
+        const weekly = computeWeeklyData(rows);
+
+        return {
+          name,
+          rows,
+          submissions,
+          hm_reviewed: hmApproved,
+          shortlisted,
+          r1_scheduled: interviewScheduled,
+          r1_cleared: interviewCleared,
+          offered,
+          joined,
+          dropped,
+          avg_time_to_submit: avgSubmitDelay,
+          avg_time_to_schedule: avgInterviewDelay,
+          jd_match_score: avgSkillMatch / 100,
+          weekly_submissions: weekly.subs,
+          weekly_shortlists: weekly.sls,
+        };
+      });
+    }
+
+    function computeWeeklyData(rows) {
+      const weeks = {};
+      rows.forEach(r => {
+        const d = new Date(r.submission_date);
+        if (isNaN(d)) return;
+        const y = d.getFullYear();
+        const oneJan = new Date(y, 0, 1);
+        const wk = Math.ceil(((d - oneJan) / 86400000 + oneJan.getDay() + 1) / 7);
+        const key = `${y}-W${String(wk).padStart(2, '0')}`;
+        if (!weeks[key]) weeks[key] = { s: 0, sl: 0 };
+        weeks[key].s++;
+        if (r.shortlisted) weeks[key].sl++;
+      });
+      const keys = Object.keys(weeks).sort();
+      const last8 = keys.slice(-8);
+      return {
+        subs: last8.map(k => weeks[k].s),
+        sls: last8.map(k => weeks[k].sl),
+      };
+    }
+
+    // ═══════════════════════════════════════════════════════
+    // ML MODELS — Ported from ml_recommender.py
+    // ═══════════════════════════════════════════════════════
+
+    // 1. REJECTION RISK CLASSIFIER
+    function predictRejectionRisk(profile, allProfiles) {
+      const shortlistRate = profile.shortlisted / Math.max(profile.submissions, 1);
+      const r1Rate = profile.r1_cleared / Math.max(profile.r1_scheduled, 1);
+      const score = -1.8 * profile.jd_match_score
+        + 0.4 * profile.avg_time_to_submit
+        + 0.6 * profile.avg_time_to_schedule
+        - 1.2 * shortlistRate
+        - 0.9 * r1Rate;
+
+      // Compute team mean for centering
+      let teamMean = 0;
+      allProfiles.forEach(p => {
+        const slr = p.shortlisted / Math.max(p.submissions, 1);
+        const r1r = p.r1_cleared / Math.max(p.r1_scheduled, 1);
+        teamMean += -1.8 * p.jd_match_score + 0.4 * p.avg_time_to_submit + 0.6 * p.avg_time_to_schedule - 1.2 * slr - 0.9 * r1r;
+      });
+      teamMean /= allProfiles.length;
+
+      const prob = 1 / (1 + Math.exp(-(score - teamMean) * 2.5));
+      let level = 'LOW';
+      if (prob >= 0.70) level = 'HIGH';
+      else if (prob >= 0.45) level = 'MEDIUM';
+      return { level, prob: Math.round(prob * 1000) / 1000 };
+    }
+
+    // 2. RECRUITER SCORER
+    const SCORER_WEIGHTS = {
+      submission_to_shortlist: 0.25,
+      shortlist_to_interview: 0.20,
+      interview_to_offer: 0.25,
+      time_to_submit: 0.10,
+      time_to_schedule: 0.10,
+      jd_match_score: 0.10,
+    };
+    const SCORER_TARGETS = {
+      submission_to_shortlist: 0.70,
+      shortlist_to_interview: 0.65,
+      interview_to_offer: 0.40,
+      time_to_submit: 1.0,
+      time_to_schedule: 2.0,
+      jd_match_score: 0.80,
+    };
+
+    function scoreRecruiter(profile) {
+      const kpis = {
+        submission_to_shortlist: profile.shortlisted / Math.max(profile.submissions, 1),
+        shortlist_to_interview: profile.r1_scheduled / Math.max(profile.shortlisted, 1),
+        interview_to_offer: profile.offered / Math.max(profile.r1_cleared, 1),
+        time_to_submit: profile.avg_time_to_submit,
+        time_to_schedule: profile.avg_time_to_schedule,
+        jd_match_score: profile.jd_match_score,
+      };
+
+      const breakdown = {};
+      for (const [kpi, value] of Object.entries(kpis)) {
+        const target = SCORER_TARGETS[kpi];
+        let raw;
+        if (kpi === 'time_to_submit' || kpi === 'time_to_schedule') {
+          raw = Math.max(0, 1 - (value - target) / target);
+        } else {
+          raw = Math.min(value / target, 1.0);
+        }
+        breakdown[kpi] = Math.round(raw * 1000) / 10;
+      }
+
+      let overall = 0;
+      for (const [kpi, w] of Object.entries(SCORER_WEIGHTS)) {
+        overall += breakdown[kpi] * w;
+      }
+      return { score: Math.round(overall * 10) / 10, breakdown };
+    }
+
+    // 3. BOTTLENECK DETECTOR
+    function detectBottlenecks(profile, team) {
+      const stages = {
+        'Submit speed': team.map(r => r.avg_time_to_submit),
+        'Scheduling speed': team.map(r => r.avg_time_to_schedule),
+      };
+      const recruiterVals = {
+        'Submit speed': profile.avg_time_to_submit,
+        'Scheduling speed': profile.avg_time_to_schedule,
+      };
+
+      const bottlenecks = [];
+      for (const [stage, times] of Object.entries(stages)) {
+        const mu = times.reduce((a, b) => a + b, 0) / times.length;
+        const std = Math.sqrt(times.reduce((s, v) => s + (v - mu) ** 2, 0) / times.length) || 1;
+        const z = (recruiterVals[stage] - mu) / std;
+        if (z > 1.5) {
+          bottlenecks.push({
+            stage, z_score: Math.round(z * 100) / 100,
+            recruiter_val: Math.round(recruiterVals[stage] * 100) / 100,
+            team_avg: Math.round(mu * 100) / 100,
+            severity: z > 2.5 ? 'HIGH' : 'MEDIUM',
+          });
+        }
+      }
+      return bottlenecks;
+    }
+
+    // 4. COLLABORATIVE RECOMMENDER
+    function buildFeatureVector(p) {
+      return [
+        p.shortlisted / Math.max(p.submissions, 1),
+        p.r1_scheduled / Math.max(p.shortlisted, 1),
+        p.offered / Math.max(p.r1_cleared, 1),
+        1 / Math.max(p.avg_time_to_submit, 0.1),
+        1 / Math.max(p.avg_time_to_schedule, 0.1),
+        p.jd_match_score,
+      ];
+    }
+
+    function cosineSim(a, b) {
+      let dot = 0, magA = 0, magB = 0;
+      for (let i = 0; i < a.length; i++) {
+        dot += a[i] * b[i]; magA += a[i] * a[i]; magB += b[i] * b[i];
+      }
+      return dot / (Math.sqrt(magA) * Math.sqrt(magB) || 1);
+    }
+
+    function collaborativeRecommend(target, team) {
+      const kpiNames = [
+        'submission→shortlist rate', 'shortlist→R1 rate', 'interview→offer rate',
+        'submission speed', 'scheduling speed', 'JD match score'
+      ];
+      const peers = team.filter(r => r.name !== target.name)
+        .map(r => ({ profile: r, score: scoreRecruiter(r).score }))
+        .sort((a, b) => b.score - a.score)
+        .slice(0, 2);
+
+      const targetVec = buildFeatureVector(target);
+      return peers.map(({ profile: peer, score: peerScore }) => {
+        const peerVec = buildFeatureVector(peer);
+        const sim = cosineSim(targetVec, peerVec);
+        const diffs = peerVec.map((v, i) => v - targetVec[i]);
+        const strongestIdx = diffs.indexOf(Math.max(...diffs));
+        return {
+          peer: peer.name, peer_score: peerScore,
+          similarity: Math.round(sim * 1000) / 1000,
+          learn_from: kpiNames[strongestIdx],
+          peer_delta: Math.round(diffs[strongestIdx] * 1000) / 1000,
+        };
+      });
+    }
+
+    // 5. WEEKLY TREND FORECASTER
+    function forecastTrend(profile) {
+      const subs = profile.weekly_submissions;
+      const sls = profile.weekly_shortlists;
+      if (subs.length < 3) return { forecast_rate: null, trend: 'insufficient_data', slope_per_week: 0, current_avg_rate: 0 };
+
+      const rates = subs.map((s, i) => s > 0 ? sls[i] / s : 0);
+      const n = rates.length;
+      const xMean = (n - 1) / 2;
+      const yMean = rates.reduce((a, b) => a + b, 0) / n;
+      let num = 0, den = 0;
+      rates.forEach((y, i) => { num += (i - xMean) * (y - yMean); den += (i - xMean) ** 2; });
+      const slope = den ? num / den : 0;
+      const intercept = yMean - slope * xMean;
+      const forecast = Math.max(0, Math.min(slope * n + intercept, 1));
+      const trend = slope > 0.005 ? 'improving' : slope < -0.005 ? 'declining' : 'stable';
+      return {
+        forecast_rate: Math.round(forecast * 1000) / 1000,
+        trend,
+        slope_per_week: Math.round(slope * 10000) / 10000,
+        current_avg_rate: Math.round(yMean * 1000) / 1000,
+      };
+    }
+
+    // 6. GAP ANALYSIS ENGINE
+    function analyzeRecruiter(profile, team) {
+      const { score: overallScore, breakdown: kpiBreakdown } = scoreRecruiter(profile);
+      const risk = predictRejectionRisk(profile, team);
+      const bottlenecks = detectBottlenecks(profile, team);
+      const peers = collaborativeRecommend(profile, team);
+      const forecast = forecastTrend(profile);
+
+      const recommendations = [];
+      let priority = 1;
+
+      // Risk
+      if (risk.level === 'HIGH' || risk.level === 'MEDIUM') {
+        recommendations.push({
+          priority: priority++, category: 'Rejection Risk',
+          finding: `Model predicts ${risk.level} rejection risk (p=${(risk.prob * 100).toFixed(0)}%). Key driver: JD match score = ${profile.jd_match_score.toFixed(2)}`,
+          action: 'Run a 30-min JD alignment session before next batch submission. Use keyword overlap checker against the job description.',
+          expected_lift: '+12–18% shortlist rate', confidence: risk.prob,
+        });
+      }
+
+      // Bottlenecks
+      bottlenecks.forEach(b => {
+        recommendations.push({
+          priority: priority++, category: 'Stage Bottleneck',
+          finding: `${b.stage} is ${b.z_score}σ above team average (${b.recruiter_val}d vs team avg ${b.team_avg}d). Severity: ${b.severity}.`,
+          action: 'Set a calendar block: submit profiles within 24h of sourcing. Use ATS auto-reminder for interview scheduling.',
+          expected_lift: `-${((b.recruiter_val - b.team_avg) * 0.6).toFixed(1)}d avg delay`,
+          confidence: Math.min(0.5 + b.z_score * 0.1, 0.95),
+        });
+      });
+
+      // Funnel drops
+      const hmDrop = 1 - profile.hm_reviewed / Math.max(profile.submissions, 1);
+      const slDrop = 1 - profile.shortlisted / Math.max(profile.hm_reviewed, 1);
+      const r1Drop = 1 - profile.r1_cleared / Math.max(profile.r1_scheduled, 1);
+      const worst = [['HM Review', hmDrop], ['Shortlisting', slDrop], ['R1', r1Drop]]
+        .sort((a, b) => b[1] - a[1])[0];
+      recommendations.push({
+        priority: priority++, category: 'Funnel Drop-off',
+        finding: `Highest candidate loss at ${worst[0]} stage (${(worst[1] * 100).toFixed(0)}% drop-off rate).`,
+        action: `Request structured HM feedback for every ${worst[0]} rejection. Identify top 3 rejection reasons and pre-screen against them.`,
+        expected_lift: `+${(worst[1] * 15).toFixed(0)}% conversion at this stage`,
+        confidence: 0.82,
+      });
+
+      // Collaborative
+      peers.forEach(p => {
+        recommendations.push({
+          priority: priority++, category: 'Peer Learning',
+          finding: `Closest high-performer: ${p.peer} (score ${p.peer_score.toFixed(0)}/100, similarity ${(p.similarity * 100).toFixed(0)}%). Biggest gap vs peer: ${p.learn_from} (Δ ${p.peer_delta >= 0 ? '+' : ''}${p.peer_delta.toFixed(2)}).`,
+          action: `Shadow ${p.peer} for one hiring cycle, focusing on ${p.learn_from}. Ask them to share their pre-screening checklist.`,
+          expected_lift: `+${Math.abs(Math.round(p.peer_delta * 20))}% on ${p.learn_from}`,
+          confidence: p.similarity,
+        });
+      });
+
+      // Trend
+      if (forecast.trend === 'declining') {
+        recommendations.push({
+          priority: priority++, category: 'Trend Alert',
+          finding: `Shortlist rate declining at ${(forecast.slope_per_week * 100).toFixed(1)}%/week. Projected next-week rate: ${(forecast.forecast_rate * 100).toFixed(0)}%.`,
+          action: 'Review last 2 weeks\' rejected profiles with manager. Identify if a specific client or role is skewing numbers.',
+          expected_lift: 'Stabilise rate above team avg', confidence: 0.75,
+        });
+      }
+
+      // Weak KPIs
+      const weakKpis = Object.entries(kpiBreakdown).filter(([, v]) => v < 60);
+      if (weakKpis.length) {
+        const [worstKpi, worstVal] = weakKpis.sort((a, b) => a[1] - b[1])[0];
+        recommendations.push({
+          priority: priority++, category: 'KPI Improvement',
+          finding: `Lowest KPI: ${worstKpi.replace(/_/g, ' ')} = ${worstVal.toFixed(0)}/100.`,
+          action: `Set a 4-week target: improve ${worstKpi.replace(/_/g, ' ')} by 15 points. Track daily in ATS dashboard.`,
+          expected_lift: `+15 pts on ${worstKpi.replace(/_/g, ' ')}`, confidence: 0.70,
+        });
+      }
+
+      return {
+        recruiter: profile.name, overall_score: overallScore,
+        risk_level: risk.level, risk_probability: risk.prob,
+        kpi_breakdown: kpiBreakdown, trend_forecast: forecast,
+        recommendations: recommendations.sort((a, b) => a.priority - b.priority),
+        bottlenecks_found: bottlenecks.length,
+      };
+    }
+
+
+    // ═══════════════════════════════════════════════════════
+    // RENDERING
+    // ═══════════════════════════════════════════════════════
+
+    function destroyChart(id) {
+      if (chartInstances[id]) { chartInstances[id].destroy(); delete chartInstances[id]; }
+    }
+
+    function makeChart(canvasId, config) {
+      destroyChart(canvasId);
+      const ctx = document.getElementById(canvasId);
+      if (!ctx) return null;
+      chartInstances[canvasId] = new Chart(ctx, config);
+      return chartInstances[canvasId];
+    }
+
+    // Chart.js global defaults
+    Chart.defaults.color = '#94a3b8';
+    Chart.defaults.borderColor = 'rgba(255,255,255,0.05)';
+    Chart.defaults.font.family = "'Inter', sans-serif";
+
+    // ── Animated counter ──
+    function animateCounter(el, target, suffix = '', duration = 1200) {
+      let start = 0;
+      const step = ts => {
+        if (!start) start = ts;
+        const progress = Math.min((ts - start) / duration, 1);
+        const eased = 1 - Math.pow(1 - progress, 3);
+        el.textContent = Math.round(eased * target) + suffix;
+        if (progress < 1) requestAnimationFrame(step);
+      };
+      requestAnimationFrame(step);
+    }
+
+    // ── 1. OVERVIEW SECTION ──
+    function renderOverview() {
+      const total = rawData.length;
+      const hmApproved = rawData.filter(r => r.hm_review_status === 'Approved').length;
+      const shortlisted = rawData.filter(r => r.shortlisted).length;
+      const offered = rawData.filter(r => r.offer_status === 'Yes').length;
+      const joined = rawData.filter(r => r.joining_status === 'Joined').length;
+      const dropped = rawData.filter(r => r.joining_status === 'Dropped').length;
+      const avgSkill = (rawData.reduce((s, r) => s + r.skill_match_score, 0) / total).toFixed(0);
+
+      const kpis = [
+        { icon: '👥', value: total, label: 'Total Candidates', sub: `${rawData.filter(r => r.submitted).length} submitted`, color: 'var(--primary)' },
+        { icon: '✅', value: hmApproved, label: 'HM Approved', sub: `${((hmApproved / total) * 100).toFixed(1)}% approval rate`, color: 'var(--accent)' },
+        { icon: '📋', value: shortlisted, label: 'Shortlisted', sub: `${((shortlisted / total) * 100).toFixed(1)}% of total`, color: 'var(--secondary)' },
+        { icon: '🎯', value: offered, label: 'Offers Made', sub: `${((offered / total) * 100).toFixed(1)}% offer rate`, color: 'var(--warning)' },
+        { icon: '🤝', value: joined, label: 'Joined', sub: `${dropped} dropped post-offer`, color: '#10b981' },
+        { icon: '📊', value: parseInt(avgSkill), label: 'Avg Skill Match', sub: 'Across all submissions', color: 'var(--cyan)' },
+      ];
+
+      const container = document.getElementById('overviewKpis');
+      container.innerHTML = kpis.map((k, i) => `
+    <div class="kpi-card" style="--kpi-color:${k.color}">
+      <span class="kpi-icon">${k.icon}</span>
+      <div class="kpi-value" id="kpiVal${i}">0</div>
+      <div class="kpi-label">${k.label}</div>
+      <div class="kpi-sub">${k.sub}</div>
+    </div>
+  `).join('');
+
+      // Animate counters
+      kpis.forEach((k, i) => {
+        setTimeout(() => animateCounter(document.getElementById(`kpiVal${i}`), k.value), i * 100);
+      });
+
+      // Overview funnel bar chart
+      const funnelData = [total, hmApproved, shortlisted,
+        rawData.filter(r => r.interview_scheduled).length,
+        rawData.filter(r => r.interview_result === 'Cleared').length,
+        offered, joined];
+      const funnelLabels = ['Submitted', 'HM Approved', 'Shortlisted', 'Interviewed', 'Cleared', 'Offered', 'Joined'];
+      makeChart('overviewFunnelChart', {
+        type: 'bar',
+        data: {
+          labels: funnelLabels,
+          datasets: [{
+            data: funnelData,
+            backgroundColor: CHART_COLORS.slice(0, 7).map(c => c + '99'),
+            borderColor: CHART_COLORS.slice(0, 7),
+            borderWidth: 1, borderRadius: 6, barPercentage: 0.7,
+          }]
+        },
+        options: {
+          responsive: true, maintainAspectRatio: false,
+          plugins: { legend: { display: false } },
+          scales: { y: { beginAtZero: true, grid: { color: 'rgba(255,255,255,0.03)' } }, x: { grid: { display: false } } }
+        }
+      });
+
+      // Monthly trend mini chart
+      const monthly = getMonthlyData();
+      makeChart('overviewTrendChart', {
+        type: 'line',
+        data: {
+          labels: monthly.labels,
+          datasets: [
+            { label: 'Submissions', data: monthly.submissions, borderColor: '#4f8ef7', backgroundColor: 'rgba(79,142,247,0.1)', fill: true, tension: 0.4, pointRadius: 4, pointHoverRadius: 6 },
+            { label: 'Joined', data: monthly.joined, borderColor: '#10b981', backgroundColor: 'rgba(16,185,129,0.1)', fill: true, tension: 0.4, pointRadius: 4, pointHoverRadius: 6 },
+          ]
+        },
+        options: {
+          responsive: true, maintainAspectRatio: false,
+          plugins: { legend: { position: 'top', labels: { boxWidth: 12, padding: 16 } } },
+          scales: { y: { beginAtZero: true, grid: { color: 'rgba(255,255,255,0.03)' } }, x: { grid: { display: false } } }
+        }
+      });
+
+      // Top performers mini
+      const ranked = recruiterProfiles.map(p => ({
+        name: p.name, score: scoreRecruiter(p).score,
+        risk: predictRejectionRisk(p, recruiterProfiles),
+      })).sort((a, b) => b.score - a.score);
+
+      document.getElementById('overviewTopPerformers').innerHTML = `
+    <table class="data-table">
+      <thead><tr><th>Rank</th><th>Recruiter</th><th>Score</th><th>Risk</th><th>Performance</th></tr></thead>
+      <tbody>${ranked.map((r, i) => `
+        <tr>
+          <td style="font-weight:700;color:${i < 3 ? 'var(--warning)' : 'var(--text-muted)'}">#${i + 1}</td>
+          <td style="font-weight:600">${r.name}</td>
+          <td style="font-weight:700">${r.score.toFixed(1)}</td>
+          <td><span class="badge badge-${r.risk.level.toLowerCase()}">${r.risk.level}</span></td>
+          <td><div class="score-bar-wrap"><div class="score-bar" style="width:${r.score}%"></div></div></td>
+        </tr>
+      `).join('')}</tbody>
+    </table>
+  `;
+
+      // Rejection reasons mini
+      const reasons = {};
+      rawData.filter(r => r.rejection_reason).forEach(r => { reasons[r.rejection_reason] = (reasons[r.rejection_reason] || 0) + 1; });
+      const sortedReasons = Object.entries(reasons).sort((a, b) => b[1] - a[1]);
+      makeChart('overviewRejectionChart', {
+        type: 'doughnut',
+        data: {
+          labels: sortedReasons.map(r => r[0]),
+          datasets: [{ data: sortedReasons.map(r => r[1]), backgroundColor: CHART_COLORS, borderWidth: 0 }]
+        },
+        options: {
+          responsive: true, maintainAspectRatio: false, cutout: '55%',
+          plugins: { legend: { position: 'right', labels: { boxWidth: 10, padding: 8, font: { size: 11 } } } }
+        }
+      });
+    }
+
+    // ── 2. LEADERBOARD ──
+    function renderLeaderboard() {
+      const rows = recruiterProfiles.map(p => {
+        const { score, breakdown } = scoreRecruiter(p);
+        const risk = predictRejectionRisk(p, recruiterProfiles);
+        const forecast = forecastTrend(p);
+        return { ...p, score, breakdown, risk, forecast };
+      }).sort((a, b) => b.score - a.score);
+
+      document.getElementById('leaderboardTable').innerHTML = `
+    <table class="data-table">
+      <thead><tr>
+        <th>#</th><th>Recruiter</th><th>Score</th><th>Risk</th>
+        <th>Submissions</th><th>Shortlist %</th><th>Interview %</th>
+        <th>Offer %</th><th>Join Rate</th><th>Trend</th><th>JD Match</th><th>Performance</th>
+      </tr></thead>
+      <tbody>${rows.map((r, i) => {
+        const slRate = ((r.shortlisted / Math.max(r.submissions, 1)) * 100).toFixed(0);
+        const intRate = ((r.r1_scheduled / Math.max(r.shortlisted, 1)) * 100).toFixed(0);
+        const offRate = ((r.offered / Math.max(r.r1_cleared, 1)) * 100).toFixed(0);
+        const joinRate = ((r.joined / Math.max(r.offered, 1)) * 100).toFixed(0);
+        const trendIcon = r.forecast.trend === 'improving' ? '↑' : r.forecast.trend === 'declining' ? '↓' : '→';
+        const trendClass = r.forecast.trend === 'improving' ? 'trend-up' : r.forecast.trend === 'declining' ? 'trend-down' : 'trend-stable';
+        return `<tr>
+          <td style="font-weight:800;color:${i < 3 ? 'var(--warning)' : 'var(--text-muted)'}">${i + 1}</td>
+          <td style="font-weight:600">${r.name}</td>
+          <td style="font-weight:800;font-size:1.1rem">${r.score.toFixed(1)}</td>
+          <td><span class="badge badge-${r.risk.level.toLowerCase()}">${r.risk.level} ${(r.risk.prob * 100).toFixed(0)}%</span></td>
+          <td>${r.submissions}</td>
+          <td>${slRate}%</td>
+          <td>${intRate}%</td>
+          <td>${offRate}%</td>
+          <td>${joinRate}%</td>
+          <td class="${trendClass}" style="font-weight:600">${trendIcon} ${r.forecast.trend}</td>
+          <td>${(r.jd_match_score * 100).toFixed(0)}%</td>
+          <td><div class="score-bar-wrap" style="width:120px"><div class="score-bar" style="width:${r.score}%"></div></div></td>
+        </tr>`;
+      }).join('')}</tbody>
+    </table>
+  `;
+    }
+
+    // ── 3. PIPELINE ──
+    function renderPipeline() {
+      const total = rawData.length;
+      const stages = [
+        { label: 'Submitted', count: total, color: '#4f8ef7' },
+        { label: 'HM Approved', count: rawData.filter(r => r.hm_review_status === 'Approved').length, color: '#7c3aed' },
+        { label: 'Shortlisted', count: rawData.filter(r => r.shortlisted).length, color: '#06b6d4' },
+        { label: 'Interview Scheduled', count: rawData.filter(r => r.interview_scheduled).length, color: '#f59e0b' },
+        { label: 'Interview Cleared', count: rawData.filter(r => r.interview_result === 'Cleared').length, color: '#10b981' },
+        { label: 'Offer Made', count: rawData.filter(r => r.offer_status === 'Yes').length, color: '#f97316' },
+        { label: 'Joined', count: rawData.filter(r => r.joining_status === 'Joined').length, color: '#f43f5e' },
+      ];
+
+      document.getElementById('pipelineFunnel').innerHTML = `
+    <div class="funnel">
+      ${stages.map((s, i) => {
+        const widthPct = Math.max(20, (s.count / total) * 100);
+        const convRate = i > 0 ? ((s.count / stages[i - 1].count) * 100).toFixed(1) : '100.0';
+        return `<div class="funnel-stage" style="width:${widthPct}%;background:${s.color}22;border:1px solid ${s.color}44;color:${s.color}">
+          <span class="funnel-label">${s.label}</span>
+          <span><span class="funnel-count">${s.count}</span><span class="funnel-rate">${convRate}%</span></span>
+        </div>`;
+      }).join('')}
+    </div>
+  `;
+
+      // Conversion rates chart
+      const convRates = stages.slice(1).map((s, i) => ({
+        label: `${stages[i].label} → ${s.label}`,
+        rate: (s.count / Math.max(stages[i].count, 1)) * 100,
+      }));
+      makeChart('pipelineConversionChart', {
+        type: 'bar',
+        data: {
+          labels: convRates.map(c => c.label),
+          datasets: [{
+            label: 'Conversion %',
+            data: convRates.map(c => c.rate),
+            backgroundColor: CHART_COLORS.slice(1, 8).map(c => c + '88'),
+            borderColor: CHART_COLORS.slice(1, 8),
+            borderWidth: 1, borderRadius: 6, barPercentage: 0.6,
+          }]
+        },
+        options: {
+          indexAxis: 'y', responsive: true, maintainAspectRatio: false,
+          plugins: { legend: { display: false } },
+          scales: { x: { beginAtZero: true, max: 100, grid: { color: 'rgba(255,255,255,0.03)' } }, y: { grid: { display: false } } }
+        }
+      });
+
+      // Drop-off chart
+      const dropoffs = stages.slice(1).map((s, i) => ({
+        label: `${stages[i].label} → ${s.label}`,
+        dropped: stages[i].count - s.count,
+      }));
+      makeChart('pipelineDropoffChart', {
+        type: 'bar',
+        data: {
+          labels: dropoffs.map(d => d.label),
+          datasets: [{
+            label: 'Candidates Lost',
+            data: dropoffs.map(d => d.dropped),
+            backgroundColor: 'rgba(239,68,68,0.3)', borderColor: '#ef4444',
+            borderWidth: 1, borderRadius: 6, barPercentage: 0.6,
+          }]
+        },
+        options: {
+          indexAxis: 'y', responsive: true, maintainAspectRatio: false,
+          plugins: { legend: { display: false } },
+          scales: { x: { beginAtZero: true, grid: { color: 'rgba(255,255,255,0.03)' } }, y: { grid: { display: false } } }
+        }
+      });
+    }
+
+    // ── 4. DEEP DIVE ──
+    function renderDeepDive(recruiterName) {
+      const profile = recruiterProfiles.find(p => p.name === recruiterName);
+      if (!profile) return;
+
+      const result = analyzeRecruiter(profile, recruiterProfiles);
+
+      // Gauge
+      const gaugeEl = document.getElementById('deepdiveGauge');
+      const riskColor = result.risk_level === 'HIGH' ? 'var(--danger)' : result.risk_level === 'MEDIUM' ? 'var(--warning)' : 'var(--accent)';
+      const scoreColor = result.overall_score >= 70 ? 'var(--accent)' : result.overall_score >= 50 ? 'var(--warning)' : 'var(--danger)';
+      gaugeEl.innerHTML = `
+    <div style="margin-bottom:24px">
+      <div class="gauge-value" style="color:${scoreColor}">${result.overall_score.toFixed(1)}</div>
+      <div class="gauge-label">Productivity Score / 100</div>
+    </div>
+    <div class="divider"></div>
+    <div style="margin-top:20px">
+      <div class="gauge-risk" style="color:${riskColor}">⚡ ${result.risk_level} RISK</div>
+      <div class="gauge-label">Rejection probability: ${(result.risk_probability * 100).toFixed(0)}%</div>
+    </div>
+    <div class="divider"></div>
+    <div style="margin-top:20px">
+      <div class="gauge-risk trend-${result.trend_forecast.trend === 'improving' ? 'up' : result.trend_forecast.trend === 'declining' ? 'down' : 'stable'}">
+        ${result.trend_forecast.trend === 'improving' ? '📈' : result.trend_forecast.trend === 'declining' ? '📉' : '➡️'}
+        ${result.trend_forecast.trend.toUpperCase()}
+      </div>
+      <div class="gauge-label">Forecast: ${result.trend_forecast.forecast_rate !== null ? (result.trend_forecast.forecast_rate * 100).toFixed(0) + '%' : 'N/A'} next week</div>
+    </div>
+    <div class="divider"></div>
+    <div style="margin-top:16px;font-size:0.82rem;color:var(--text-muted)">
+      <div style="display:flex;justify-content:space-between;margin-bottom:6px"><span>Submissions</span><strong style="color:var(--text)">${profile.submissions}</strong></div>
+      <div style="display:flex;justify-content:space-between;margin-bottom:6px"><span>Shortlisted</span><strong style="color:var(--text)">${profile.shortlisted}</strong></div>
+      <div style="display:flex;justify-content:space-between;margin-bottom:6px"><span>Offers</span><strong style="color:var(--text)">${profile.offered}</strong></div>
+      <div style="display:flex;justify-content:space-between"><span>Joined</span><strong style="color:var(--accent)">${profile.joined}</strong></div>
+    </div>
+  `;
+
+      // Radar chart
+      const radarLabels = Object.keys(result.kpi_breakdown).map(k => k.replace(/_/g, ' '));
+      const radarData = Object.values(result.kpi_breakdown);
+
+      // Team avg for comparison
+      const teamAvg = {};
+      recruiterProfiles.forEach(p => {
+        const { breakdown } = scoreRecruiter(p);
+        Object.entries(breakdown).forEach(([k, v]) => { teamAvg[k] = (teamAvg[k] || 0) + v; });
+      });
+      Object.keys(teamAvg).forEach(k => teamAvg[k] /= recruiterProfiles.length);
+
+      makeChart('deepdiveRadar', {
+        type: 'radar',
+        data: {
+          labels: radarLabels,
+          datasets: [
+            {
+              label: profile.name,
+              data: radarData,
+              borderColor: '#4f8ef7', backgroundColor: 'rgba(79,142,247,0.15)',
+              borderWidth: 2, pointRadius: 4, pointBackgroundColor: '#4f8ef7',
+            },
+            {
+              label: 'Team Average',
+              data: Object.values(teamAvg),
+              borderColor: '#7c3aed', backgroundColor: 'rgba(124,58,237,0.08)',
+              borderWidth: 1.5, pointRadius: 3, pointBackgroundColor: '#7c3aed',
+              borderDash: [4, 4],
+            }
+          ]
+        },
+        options: {
+          responsive: true, maintainAspectRatio: false,
+          plugins: { legend: { position: 'top', labels: { boxWidth: 12, padding: 14 } } },
+          scales: {
+            r: {
+              beginAtZero: true, max: 100, ticks: { stepSize: 20, backdropColor: 'transparent', color: '#64748b' },
+              grid: { color: 'rgba(255,255,255,0.05)' }, angleLines: { color: 'rgba(255,255,255,0.05)' },
+              pointLabels: { font: { size: 10 }, color: '#94a3b8' },
+            }
+          }
+        }
+      });
+
+      // KPI bars
+      const barsEl = document.getElementById('deepdiveKpiBars');
+      barsEl.innerHTML = Object.entries(result.kpi_breakdown).map(([kpi, val]) => {
+        const fillClass = val >= 70 ? 'good' : val >= 50 ? '' : val >= 35 ? 'warn' : 'danger';
+        return `<div class="kpi-bar-item">
+      <span class="kpi-bar-label">${kpi.replace(/_/g, ' ')}</span>
+      <div class="kpi-bar-track"><div class="kpi-bar-fill ${fillClass}" style="width:${val}%"></div></div>
+      <span class="kpi-bar-val">${val.toFixed(0)}</span>
+    </div>`;
+      }).join('');
+
+      // Recommendations
+      const recsEl = document.getElementById('deepdiveRecs');
+      recsEl.innerHTML = result.recommendations.map(rec => {
+        const borderColor = rec.category === 'Rejection Risk' ? 'var(--danger)' :
+          rec.category === 'Stage Bottleneck' ? 'var(--warning)' :
+            rec.category === 'Peer Learning' ? 'var(--secondary)' :
+              rec.category === 'Trend Alert' ? 'var(--orange)' : 'var(--primary)';
+        return `<div class="rec-card" style="border-left-color:${borderColor}">
+      <div class="rec-header">
+        <span class="rec-category" style="color:${borderColor}">${rec.category}</span>
+        <span class="rec-priority">P${rec.priority}</span>
+      </div>
+      <div class="rec-finding">${rec.finding}</div>
+      <div class="rec-action">💡 ${rec.action}</div>
+      <div class="rec-lift">📈 Expected lift: ${rec.expected_lift}</div>
+      <div class="rec-confidence">
+        Confidence:
+        <div class="conf-bar"><div class="conf-fill" style="width:${rec.confidence * 100}%;background:${borderColor}"></div></div>
+        ${(rec.confidence * 100).toFixed(0)}%
+      </div>
+    </div>`;
+      }).join('');
+    }
+
+    function initDeepDive() {
+      const sel = document.getElementById('recruiterSelect');
+      sel.innerHTML = recruiterProfiles
+        .sort((a, b) => scoreRecruiter(b).score - scoreRecruiter(a).score)
+        .map(p => `<option value="${p.name}">${p.name}</option>`)
+        .join('');
+      sel.addEventListener('change', () => renderDeepDive(sel.value));
+      renderDeepDive(sel.value);
+    }
+
+    // ── 5. CLIENTS ──
+    function renderClients() {
+      const clients = {};
+      rawData.forEach(r => {
+        if (!clients[r.client]) clients[r.client] = { submitted: 0, approved: 0, shortlisted: 0, offered: 0, joined: 0, dropped: 0 };
+        clients[r.client].submitted++;
+        if (r.hm_review_status === 'Approved') clients[r.client].approved++;
+        if (r.shortlisted) clients[r.client].shortlisted++;
+        if (r.offer_status === 'Yes') clients[r.client].offered++;
+        if (r.joining_status === 'Joined') clients[r.client].joined++;
+        if (r.joining_status === 'Dropped') clients[r.client].dropped++;
+      });
+      const sorted = Object.entries(clients).sort((a, b) => b[1].submitted - a[1].submitted);
+
+      makeChart('clientSubmissionsChart', {
+        type: 'bar',
+        data: {
+          labels: sorted.map(c => c[0]),
+          datasets: [
+            { label: 'Submitted', data: sorted.map(c => c[1].submitted), backgroundColor: '#4f8ef799', borderColor: '#4f8ef7', borderWidth: 1, borderRadius: 6 },
+            { label: 'Joined', data: sorted.map(c => c[1].joined), backgroundColor: '#10b98199', borderColor: '#10b981', borderWidth: 1, borderRadius: 6 },
+          ]
+        },
+        options: {
+          responsive: true, maintainAspectRatio: false,
+          plugins: { legend: { position: 'top', labels: { boxWidth: 12, padding: 14 } } },
+          scales: { y: { beginAtZero: true, grid: { color: 'rgba(255,255,255,0.03)' } }, x: { grid: { display: false } } }
+        }
+      });
+
+      const successRates = sorted.map(([name, data]) => ({
+        name, rate: ((data.joined / Math.max(data.submitted, 1)) * 100).toFixed(1)
+      }));
+      makeChart('clientSuccessChart', {
+        type: 'bar',
+        data: {
+          labels: successRates.map(c => c.name),
+          datasets: [{
+            label: 'Success Rate %',
+            data: successRates.map(c => parseFloat(c.rate)),
+            backgroundColor: CHART_COLORS.slice(0, 7).map(c => c + '88'),
+            borderColor: CHART_COLORS.slice(0, 7),
+            borderWidth: 1, borderRadius: 6, barPercentage: 0.6,
+          }]
+        },
+        options: {
+          responsive: true, maintainAspectRatio: false,
+          plugins: { legend: { display: false } },
+          scales: { y: { beginAtZero: true, grid: { color: 'rgba(255,255,255,0.03)' }, ticks: { callback: v => v + '%' } }, x: { grid: { display: false } } }
+        }
+      });
+
+      document.getElementById('clientTable').innerHTML = `
+    <table class="data-table">
+      <thead><tr><th>Client</th><th>Submitted</th><th>Approved</th><th>Shortlisted</th><th>Offered</th><th>Joined</th><th>Dropped</th><th>Success %</th></tr></thead>
+      <tbody>${sorted.map(([name, d]) => `
+        <tr>
+          <td style="font-weight:600">${name}</td><td>${d.submitted}</td><td>${d.approved}</td>
+          <td>${d.shortlisted}</td><td>${d.offered}</td>
+          <td style="color:var(--accent);font-weight:600">${d.joined}</td>
+          <td style="color:var(--warning)">${d.dropped}</td>
+          <td style="font-weight:700">${((d.joined / Math.max(d.submitted, 1)) * 100).toFixed(1)}%</td>
+        </tr>
+      `).join('')}</tbody>
+    </table>
+  `;
+    }
+
+    // ── 6. ROLES ──
+    function renderRoles() {
+      const roles = {};
+      rawData.forEach(r => {
+        if (!roles[r.job_role]) roles[r.job_role] = { submitted: 0, approved: 0, shortlisted: 0, interviewed: 0, cleared: 0, offered: 0, joined: 0 };
+        roles[r.job_role].submitted++;
+        if (r.hm_review_status === 'Approved') roles[r.job_role].approved++;
+        if (r.shortlisted) roles[r.job_role].shortlisted++;
+        if (r.interview_scheduled) roles[r.job_role].interviewed++;
+        if (r.interview_result === 'Cleared') roles[r.job_role].cleared++;
+        if (r.offer_status === 'Yes') roles[r.job_role].offered++;
+        if (r.joining_status === 'Joined') roles[r.job_role].joined++;
+      });
+      const sorted = Object.entries(roles).sort((a, b) => b[1].submitted - a[1].submitted);
+
+      makeChart('roleDistChart', {
+        type: 'doughnut',
+        data: {
+          labels: sorted.map(r => r[0]),
+          datasets: [{ data: sorted.map(r => r[1].submitted), backgroundColor: CHART_COLORS, borderWidth: 0 }]
+        },
+        options: {
+          responsive: true, maintainAspectRatio: false, cutout: '50%',
+          plugins: { legend: { position: 'right', labels: { boxWidth: 12, padding: 10, font: { size: 12 } } } }
+        }
+      });
+
+      makeChart('roleOfferChart', {
+        type: 'bar',
+        data: {
+          labels: sorted.map(r => r[0]),
+          datasets: [
+            { label: 'Offer Rate %', data: sorted.map(r => ((r[1].offered / Math.max(r[1].submitted, 1)) * 100)), backgroundColor: '#7c3aed88', borderColor: '#7c3aed', borderWidth: 1, borderRadius: 6 },
+            { label: 'Join Rate %', data: sorted.map(r => ((r[1].joined / Math.max(r[1].submitted, 1)) * 100)), backgroundColor: '#10b98188', borderColor: '#10b981', borderWidth: 1, borderRadius: 6 },
+          ]
+        },
+        options: {
+          responsive: true, maintainAspectRatio: false,
+          plugins: { legend: { position: 'top', labels: { boxWidth: 12, padding: 14 } } },
+          scales: { y: { beginAtZero: true, grid: { color: 'rgba(255,255,255,0.03)' }, ticks: { callback: v => v + '%' } }, x: { grid: { display: false } } }
+        }
+      });
+
+      document.getElementById('roleTable').innerHTML = `
+    <table class="data-table">
+      <thead><tr><th>Role</th><th>Submitted</th><th>Approved</th><th>Shortlisted</th><th>Interviewed</th><th>Cleared</th><th>Offered</th><th>Joined</th><th>Conversion</th></tr></thead>
+      <tbody>${sorted.map(([name, d]) => `
+        <tr>
+          <td style="font-weight:600">${name}</td><td>${d.submitted}</td><td>${d.approved}</td>
+          <td>${d.shortlisted}</td><td>${d.interviewed}</td><td>${d.cleared}</td>
+          <td>${d.offered}</td><td style="color:var(--accent);font-weight:600">${d.joined}</td>
+          <td style="font-weight:700">${((d.joined / Math.max(d.submitted, 1)) * 100).toFixed(1)}%</td>
+        </tr>
+      `).join('')}</tbody>
+    </table>
+  `;
+    }
+
+    // ── 7. REJECTIONS ──
+    function renderRejections() {
+      // Rejection reasons
+      const reasons = {};
+      rawData.filter(r => r.rejection_reason).forEach(r => {
+        reasons[r.rejection_reason] = (reasons[r.rejection_reason] || 0) + 1;
+      });
+      const sortedReasons = Object.entries(reasons).sort((a, b) => b[1] - a[1]);
+
+      makeChart('rejectionReasonsChart', {
+        type: 'bar',
+        data: {
+          labels: sortedReasons.map(r => r[0]),
+          datasets: [{
+            label: 'Count',
+            data: sortedReasons.map(r => r[1]),
+            backgroundColor: CHART_COLORS.map(c => c + '88'),
+            borderColor: CHART_COLORS,
+            borderWidth: 1, borderRadius: 6, barPercentage: 0.7,
+          }]
+        },
+        options: {
+          indexAxis: 'y', responsive: true, maintainAspectRatio: false,
+          plugins: { legend: { display: false } },
+          scales: { x: { beginAtZero: true, grid: { color: 'rgba(255,255,255,0.03)' } }, y: { grid: { display: false } } }
+        }
+      });
+
+      // Drop reasons
+      const dropReasons = {};
+      rawData.filter(r => r.candidate_drop_reason).forEach(r => {
+        dropReasons[r.candidate_drop_reason] = (dropReasons[r.candidate_drop_reason] || 0) + 1;
+      });
+      const sortedDrops = Object.entries(dropReasons).sort((a, b) => b[1] - a[1]);
+
+      makeChart('dropReasonsChart', {
+        type: 'doughnut',
+        data: {
+          labels: sortedDrops.map(r => r[0]),
+          datasets: [{ data: sortedDrops.map(r => r[1]), backgroundColor: ['#f43f5e', '#f59e0b', '#06b6d4', '#7c3aed', '#10b981'], borderWidth: 0 }]
+        },
+        options: {
+          responsive: true, maintainAspectRatio: false, cutout: '55%',
+          plugins: { legend: { position: 'right', labels: { boxWidth: 12, padding: 10, font: { size: 12 } } } }
+        }
+      });
+
+      // Rejections by recruiter
+      const recRej = {};
+      recruiterProfiles.forEach(p => {
+        recRej[p.name] = p.rows.filter(r => r.rejection_reason).length;
+      });
+      const sortedRecRej = Object.entries(recRej).sort((a, b) => b[1] - a[1]);
+
+      makeChart('rejectionByRecruiterChart', {
+        type: 'bar',
+        data: {
+          labels: sortedRecRej.map(r => r[0]),
+          datasets: [{
+            label: 'Rejections',
+            data: sortedRecRej.map(r => r[1]),
+            backgroundColor: ['#4f8ef788', '#7c3aed88', '#10b98188', '#f59e0b88', '#f43f5e88'],
+            borderColor: ['#4f8ef7', '#7c3aed', '#10b981', '#f59e0b', '#f43f5e'],
+            borderWidth: 1, borderRadius: 6, barPercentage: 0.6,
+          }]
+        },
+        options: {
+          responsive: true, maintainAspectRatio: false,
+          plugins: { legend: { display: false } },
+          scales: { y: { beginAtZero: true, grid: { color: 'rgba(255,255,255,0.03)' } }, x: { grid: { display: false } } }
+        }
+      });
+
+      // Heatmap table: Recruiter × Reason
+      const allReasons = sortedReasons.map(r => r[0]);
+      const allRecruiters = recruiterProfiles.map(p => p.name);
+      const heatmapData = {};
+      allRecruiters.forEach(name => {
+        heatmapData[name] = {};
+        const profile = recruiterProfiles.find(p => p.name === name);
+        profile.rows.filter(r => r.rejection_reason).forEach(r => {
+          heatmapData[name][r.rejection_reason] = (heatmapData[name][r.rejection_reason] || 0) + 1;
+        });
+      });
+
+      const maxVal = Math.max(...allRecruiters.flatMap(n => allReasons.map(r => heatmapData[n][r] || 0)));
+
+      document.getElementById('rejectionHeatmap').innerHTML = `
+    <div style="overflow-x:auto">
+    <table class="data-table">
+      <thead><tr><th>Recruiter</th>${allReasons.map(r => `<th style="font-size:0.68rem">${r}</th>`).join('')}</tr></thead>
+      <tbody>${allRecruiters.map(name => `
+        <tr>
+          <td style="font-weight:600">${name}</td>
+          ${allReasons.map(r => {
+        const val = heatmapData[name][r] || 0;
+        const intensity = val / Math.max(maxVal, 1);
+        const bg = val > 0 ? `rgba(239,68,68,${0.1 + intensity * 0.5})` : 'transparent';
+        return `<td style="background:${bg};text-align:center;font-weight:600;font-size:0.85rem">${val || '—'}</td>`;
+      }).join('')}
+        </tr>
+      `).join('')}</tbody>
+    </table>
+    </div>
+  `;
+    }
+
+    // ── 8. TRENDS ──
+    function getMonthlyData() {
+      const months = {};
+      rawData.forEach(r => {
+        const d = new Date(r.submission_date);
+        if (isNaN(d)) return;
+        const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+        if (!months[key]) months[key] = { submissions: 0, shortlisted: 0, offered: 0, joined: 0, skillSum: 0 };
+        months[key].submissions++;
+        if (r.shortlisted) months[key].shortlisted++;
+        if (r.offer_status === 'Yes') months[key].offered++;
+        if (r.joining_status === 'Joined') months[key].joined++;
+        months[key].skillSum += r.skill_match_score;
+      });
+      const keys = Object.keys(months).sort();
+      const labelMap = { '01': 'Jan', '02': 'Feb', '03': 'Mar', '04': 'Apr', '05': 'May', '06': 'Jun', '07': 'Jul', '08': 'Aug', '09': 'Sep', '10': 'Oct', '11': 'Nov', '12': 'Dec' };
+      return {
+        labels: keys.map(k => { const [y, m] = k.split('-'); return `${labelMap[m]} ${y.slice(2)}`; }),
+        submissions: keys.map(k => months[k].submissions),
+        shortlisted: keys.map(k => months[k].shortlisted),
+        offered: keys.map(k => months[k].offered),
+        joined: keys.map(k => months[k].joined),
+        avgSkill: keys.map(k => Math.round(months[k].skillSum / months[k].submissions)),
+      };
+    }
+
+    function renderTrends() {
+      const monthly = getMonthlyData();
+
+      makeChart('monthlyTrendChart', {
+        type: 'line',
+        data: {
+          labels: monthly.labels,
+          datasets: [
+            { label: 'Submissions', data: monthly.submissions, borderColor: '#4f8ef7', backgroundColor: 'rgba(79,142,247,0.08)', fill: true, tension: 0.4, pointRadius: 5, pointHoverRadius: 7, borderWidth: 2.5 },
+            { label: 'Shortlisted', data: monthly.shortlisted, borderColor: '#7c3aed', backgroundColor: 'rgba(124,58,237,0.08)', fill: true, tension: 0.4, pointRadius: 4, pointHoverRadius: 6, borderWidth: 2 },
+            { label: 'Offers', data: monthly.offered, borderColor: '#f59e0b', backgroundColor: 'rgba(245,158,11,0.08)', fill: true, tension: 0.4, pointRadius: 4, pointHoverRadius: 6, borderWidth: 2 },
+            { label: 'Joined', data: monthly.joined, borderColor: '#10b981', backgroundColor: 'rgba(16,185,129,0.08)', fill: true, tension: 0.4, pointRadius: 4, pointHoverRadius: 6, borderWidth: 2 },
+          ]
+        },
+        options: {
+          responsive: true, maintainAspectRatio: false,
+          interaction: { mode: 'index', intersect: false },
+          plugins: { legend: { position: 'top', labels: { boxWidth: 12, padding: 16 } } },
+          scales: { y: { beginAtZero: true, grid: { color: 'rgba(255,255,255,0.04)' } }, x: { grid: { display: false } } }
+        }
+      });
+
+      // Recruiter submissions over time
+      const recMonthly = {};
+      recruiterProfiles.forEach(p => {
+        recMonthly[p.name] = {};
+        p.rows.forEach(r => {
+          const d = new Date(r.submission_date);
+          if (isNaN(d)) return;
+          const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+          recMonthly[p.name][key] = (recMonthly[p.name][key] || 0) + 1;
+        });
+      });
+      const allMonths = [...new Set(rawData.map(r => {
+        const d = new Date(r.submission_date);
+        return isNaN(d) ? null : `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+      }).filter(Boolean))].sort();
+      const labelMap = { '01': 'Jan', '02': 'Feb', '03': 'Mar', '04': 'Apr', '05': 'May', '06': 'Jun', '07': 'Jul', '08': 'Aug', '09': 'Sep', '10': 'Oct', '11': 'Nov', '12': 'Dec' };
+
+      makeChart('recruiterTrendChart', {
+        type: 'line',
+        data: {
+          labels: allMonths.map(k => { const [y, m] = k.split('-'); return `${labelMap[m]} ${y.slice(2)}`; }),
+          datasets: recruiterProfiles.map((p, i) => ({
+            label: p.name,
+            data: allMonths.map(k => recMonthly[p.name][k] || 0),
+            borderColor: CHART_COLORS[i], tension: 0.4,
+            pointRadius: 3, pointHoverRadius: 5, borderWidth: 2,
+          }))
+        },
+        options: {
+          responsive: true, maintainAspectRatio: false,
+          interaction: { mode: 'index', intersect: false },
+          plugins: { legend: { position: 'top', labels: { boxWidth: 12, padding: 12 } } },
+          scales: { y: { beginAtZero: true, grid: { color: 'rgba(255,255,255,0.04)' } }, x: { grid: { display: false } } }
+        }
+      });
+
+      // Skill trend
+      const monthly2 = getMonthlyData();
+      makeChart('skillTrendChart', {
+        type: 'line',
+        data: {
+          labels: monthly2.labels,
+          datasets: [{
+            label: 'Avg Skill Match',
+            data: monthly2.avgSkill,
+            borderColor: '#06b6d4', backgroundColor: 'rgba(6,182,212,0.1)',
+            fill: true, tension: 0.4, pointRadius: 5, pointHoverRadius: 7, borderWidth: 2.5,
+          }]
+        },
+        options: {
+          responsive: true, maintainAspectRatio: false,
+          plugins: { legend: { display: false } },
+          scales: { y: { beginAtZero: false, grid: { color: 'rgba(255,255,255,0.04)' } }, x: { grid: { display: false } } }
+        }
+      });
+    }
+
+    // ── 9. AI INSIGHTS ──
+    function renderInsights() {
+      const container = document.getElementById('insightsContent');
+      let html = '';
+
+      // Team summary
+      const teamScores = recruiterProfiles.map(p => ({ name: p.name, ...analyzeRecruiter(p, recruiterProfiles) }));
+      const avgScore = teamScores.reduce((s, r) => s + r.overall_score, 0) / teamScores.length;
+      const highRiskCount = teamScores.filter(r => r.risk_level === 'HIGH').length;
+      const decliningCount = teamScores.filter(r => r.trend_forecast.trend === 'declining').length;
+
+      html += `
+    <div class="kpi-grid mb-24">
+      <div class="kpi-card" style="--kpi-color:var(--primary)">
+        <span class="kpi-icon">⚡</span>
+        <div class="kpi-value">${avgScore.toFixed(1)}</div>
+        <div class="kpi-label">Team Avg Score</div>
+      </div>
+      <div class="kpi-card" style="--kpi-color:var(--danger)">
+        <span class="kpi-icon">🔴</span>
+        <div class="kpi-value">${highRiskCount}</div>
+        <div class="kpi-label">High Risk Recruiters</div>
+      </div>
+      <div class="kpi-card" style="--kpi-color:var(--warning)">
+        <span class="kpi-icon">📉</span>
+        <div class="kpi-value">${decliningCount}</div>
+        <div class="kpi-label">Declining Trends</div>
+      </div>
+      <div class="kpi-card" style="--kpi-color:var(--accent)">
+        <span class="kpi-icon">🎯</span>
+        <div class="kpi-value">${teamScores.reduce((s, r) => s + r.recommendations.length, 0)}</div>
+        <div class="kpi-label">Total Recommendations</div>
+      </div>
+    </div>
+  `;
+
+      // Per-recruiter insights
+      teamScores.sort((a, b) => a.overall_score - b.overall_score); // Show weakest first
+      teamScores.forEach(result => {
+        const riskColor = result.risk_level === 'HIGH' ? 'var(--danger)' : result.risk_level === 'MEDIUM' ? 'var(--warning)' : 'var(--accent)';
+        html += `
+      <div class="card mb-24">
+        <div class="flex-between" style="margin-bottom:16px">
+          <div>
+            <h3 style="font-size:1.2rem;font-weight:700;color:#fff;margin-bottom:4px">${result.recruiter}</h3>
+            <span style="font-size:0.82rem;color:var(--text-muted)">Score: <strong style="color:var(--text)">${result.overall_score.toFixed(1)}/100</strong> · Risk: <strong style="color:${riskColor}">${result.risk_level}</strong> · Trend: <strong>${result.trend_forecast.trend}</strong></span>
+          </div>
+          <span class="badge badge-${result.risk_level.toLowerCase()}" style="font-size:0.8rem;padding:6px 14px">${result.risk_level} RISK</span>
+        </div>
+        <div class="insight-grid">
+          ${result.recommendations.slice(0, 4).map(rec => {
+          const borderColor = rec.category === 'Rejection Risk' ? 'var(--danger)' :
+            rec.category === 'Stage Bottleneck' ? 'var(--warning)' :
+              rec.category === 'Peer Learning' ? 'var(--secondary)' :
+                rec.category === 'Trend Alert' ? 'var(--orange)' : 'var(--primary)';
+          return `<div class="rec-card" style="border-left-color:${borderColor};margin-bottom:0">
+              <div class="rec-header">
+                <span class="rec-category" style="color:${borderColor}">${rec.category}</span>
+                <span class="rec-priority">P${rec.priority}</span>
+              </div>
+              <div class="rec-finding">${rec.finding}</div>
+              <div class="rec-action">💡 ${rec.action}</div>
+              <div class="rec-lift">📈 ${rec.expected_lift}</div>
+            </div>`;
+        }).join('')}
+        </div>
+      </div>
+    `;
+      });
+
+      container.innerHTML = html;
+    }
+
+
+    // ═══════════════════════════════════════════════════════
+    // NAVIGATION
+    // ═══════════════════════════════════════════════════════
+
+    const renderedSections = new Set();
+
+    function showSection(sectionId) {
+      document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+      document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+
+      const sec = document.getElementById('sec-' + sectionId);
+      if (sec) sec.classList.add('active');
+
+      const nav = document.querySelector(`.nav-item[data-section="${sectionId}"]`);
+      if (nav) nav.classList.add('active');
+
+      // Lazy render
+      if (!renderedSections.has(sectionId)) {
+        renderedSections.add(sectionId);
+        switch (sectionId) {
+          case 'overview': renderOverview(); break;
+          case 'leaderboard': renderLeaderboard(); break;
+          case 'pipeline': renderPipeline(); break;
+          case 'deepdive': initDeepDive(); break;
+          case 'clients': renderClients(); break;
+          case 'roles': renderRoles(); break;
+          case 'rejections': renderRejections(); break;
+          case 'trends': renderTrends(); break;
+          case 'insights': renderInsights(); break;
+        }
+      }
+    }
+
+    function initNav() {
+      document.querySelectorAll('.nav-item').forEach(item => {
+        item.addEventListener('click', () => showSection(item.dataset.section));
+      });
+    }
+
+
+    // ═══════════════════════════════════════════════════════
+    // INIT
+    // ═══════════════════════════════════════════════════════
+
+    async function init() {
+      const ok = await loadData();
+      if (!ok) return;
+
+      initNav();
+      showSection('overview');
+
+      // Hide loading
+      setTimeout(() => {
+        document.getElementById('loadingOverlay').classList.add('hide');
+        setTimeout(() => document.getElementById('loadingOverlay').remove(), 500);
+      }, 400);
+    }
+
+    document.addEventListener('DOMContentLoaded', init);
+  </script>
+</body>
+
+</html>
