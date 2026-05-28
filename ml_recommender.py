@@ -27,41 +27,88 @@ warnings.filterwarnings("ignore")
 # DATASET LOADING
 # ─────────────────────────────────────────────
 from dbConnections import fetch_data
+#query = "SELECT * FROM applications"
 
-query = "SELECT * FROM applications"
-
-df = fetch_data(query)
-
-print(df.dtypes)
-print(df.head())
+#df = fetch_data(query)
+#print("connected to database! successfully")
+#print(df.head())
+#print(df.shape)
 
 
 def load_team_from_db():
 
     query = "SELECT * FROM applications"
 
-    df = fetch_data(query)
+    try:
+        df = fetch_data(query)
+    except Exception as db_err:
+        print(f"Database fetch in ML recommender failed: {db_err}. Falling back to CSV.")
+        df = pd.DataFrame()
+
+    if df.empty:
+        import os
+        csv_path = "ats_recruiter_dataset_1000.csv"
+        if os.path.exists(csv_path):
+            df = pd.read_csv(csv_path)
+        else:
+            raise FileNotFoundError("No data in DB and CSV not found for ML recommender")
+
+    # Clean columns to lowercase and map similar names to standard snake_case
+    standard_map = {
+        "candidateid": "candidate_id",
+        "candidatename": "candidate_name",
+        "recruiter": "recruiter",
+        "recruiterexperienceyears": "recruiter_experience_years",
+        "jobrole": "job_role",
+        "client": "client",
+        "submissiondate": "submission_date",
+        "submitted": "submitted",
+        "submissiondelaydays": "submission_delay_days",
+        "skillmatchscore": "skill_match_score",
+        "hmreviewstatus": "hm_review_status",
+        "shortlisted": "shortlisted",
+        "interviewscheduled": "interview_scheduled",
+        "interviewdelaydays": "interview_delay_days",
+        "followupdelaydays": "followup_delay_days",
+        "interviewresult": "interview_result",
+        "offerstatus": "offer_status",
+        "joiningstatus": "joining_status",
+        "rejectionreason": "rejection_reason",
+        "candidatedropreason": "candidate_drop_reason"
+    }
+    cleaned_cols = []
+    for col in df.columns:
+        c = str(col).lower().strip().replace(" ", "").replace("_", "").replace("-", "")
+        if c in standard_map:
+            cleaned_cols.append(standard_map[c])
+        else:
+            cleaned_cols.append(str(col).lower().strip().replace(" ", "_").replace("-", "_"))
+    df.columns = cleaned_cols
 
     team = []
 
-    recruiters = df["recruiter"].unique()
+    recruiters = df["recruiter"].dropna().unique()
 
     for recruiter_name in recruiters:
 
-        recruiter_df = df[df["recruiter"] == recruiter_name]
+        recruiter_df = df[df["recruiter"] == recruiter_name].copy()
 
 
         recruiter_df["shortlisted"] = (
-        recruiter_df["shortlisted"]
-        .str.upper()
-        .map({"TRUE": 1, "FALSE": 0})
-    )
+            recruiter_df["shortlisted"]
+            .astype(str)
+            .str.upper()
+            .map({"TRUE": 1, "FALSE": 0, "1": 1, "0": 0, "1.0": 1, "0.0": 0, "YES": 1, "NO": 0})
+            .fillna(0)
+        )
 
         recruiter_df["interview_scheduled"] = (
-        recruiter_df["interview_scheduled"]
-        .str.upper()
-        .map({"TRUE": 1, "FALSE": 0})
-    )
+            recruiter_df["interview_scheduled"]
+            .astype(str)
+            .str.upper()
+            .map({"TRUE": 1, "FALSE": 0, "1": 1, "0": 0, "1.0": 1, "0.0": 0, "YES": 1, "NO": 0})
+            .fillna(0)
+        )
             
 
         recruiter_df["submission_delay_days"] = (
@@ -160,6 +207,16 @@ class Recommendation:
     action: str                      # concrete step
     expected_lift: str               # e.g. "+8% shortlist rate"
     confidence: float                # model confidence 0–1
+
+    def to_dict(self):
+        return {
+            "priority": self.priority,
+            "category": self.category,
+            "finding": self.finding,
+            "action": self.action,
+            "expected_lift": self.expected_lift,
+            "confidence": self.confidence,
+        }
 
 
 # ─────────────────────────────────────────────

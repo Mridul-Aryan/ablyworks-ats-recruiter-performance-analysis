@@ -10,7 +10,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap"
     rel="stylesheet">
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
+  <!-- PapaParse removed — data now comes from Flask API /api/data -->
   <style>
     /* ═══════════════════════════════════════════
        DESIGN SYSTEM — Light Professional Theme
@@ -1183,52 +1183,59 @@
   <script>
     /* ═══════════════════════════════════════════════════════════════════
        AblyWorks ATS — Dashboard Engine
-       All 6 ML models ported from ml_recommender.py
+       Connected to Python ML backend via Flask API
+       JS ML models kept as fallbacks; Deep Dive & Insights use real
+       Python sklearn models via /api/analyze and /api/insights
        ═══════════════════════════════════════════════════════════════════ */
 
     // ─── GLOBALS ─────────────────────────────────────────
     let rawData = [];
     let recruiterProfiles = [];
     let chartInstances = {};
+    const API_BASE = '';  // Same origin — served by Flask
     const CHART_COLORS = ['#4f8ef7', '#7c3aed', '#10b981', '#f59e0b', '#f43f5e', '#06b6d4', '#f97316', '#a78bfa'];
 
     // ─── DATA LOADING ────────────────────────────────────
     async function loadData() {
       try {
-        const resp = await fetch('./ats_recruiter_dataset_1000.csv');
-        const text = await resp.text();
-        const parsed = Papa.parse(text, { header: true, skipEmptyLines: true, dynamicTyping: false });
-        rawData = parsed.data.map(row => ({
-          candidate_id: (row.candidate_id || '').trim(),
-          candidate_name: (row.candidate_name || '').trim(),
-          recruiter: (row.recruiter || '').trim(),
+        // Fetch live data from Flask API (backed by MySQL database)
+        const resp = await fetch(API_BASE + '/api/data');
+        if (!resp.ok) throw new Error(`API returned ${resp.status}`);
+        const data = await resp.json();
+
+        // Normalize the database records to match expected format
+        rawData = data.map(row => ({
+          candidate_id: (row.candidate_id || '').toString().trim(),
+          candidate_name: (row.candidate_name || '').toString().trim(),
+          recruiter: (row.recruiter || '').toString().trim(),
           recruiter_experience_years: parseFloat(row.recruiter_experience_years) || 0,
-          job_role: (row.job_role || '').trim(),
-          client: (row.client || '').trim(),
-          submission_date: (row.submission_date || '').trim(),
-          submitted: (row.submitted || '').trim().toUpperCase() === 'TRUE',
+          job_role: (row.job_role || '').toString().trim(),
+          client: (row.client || '').toString().trim(),
+          submission_date: (row.submission_date || '').toString().trim(),
+          submitted: String(row.submitted).toUpperCase() === 'TRUE' || row.submitted === true || row.submitted === 1,
           submission_delay_days: parseFloat(row.submission_delay_days) || 0,
           skill_match_score: parseFloat(row.skill_match_score) || 0,
-          hm_review_status: (row.hm_review_status || '').trim(),
-          shortlisted: (row.shortlisted || '').trim().toUpperCase() === 'TRUE',
-          interview_scheduled: (row.interview_scheduled || '').trim().toUpperCase() === 'TRUE',
+          hm_review_status: (row.hm_review_status || '').toString().trim(),
+          shortlisted: String(row.shortlisted).toUpperCase() === 'TRUE' || row.shortlisted === true || row.shortlisted === 1,
+          interview_scheduled: String(row.interview_scheduled).toUpperCase() === 'TRUE' || row.interview_scheduled === true || row.interview_scheduled === 1,
           interview_delay_days: parseFloat(row.interview_delay_days) || 0,
           followup_delay_days: parseFloat(row.followup_delay_days) || 0,
-          interview_result: (row.interview_result || '').trim(),
-          offer_status: (row.offer_status || '').trim(),
-          joining_status: (row.joining_status || '').trim(),
-          rejection_reason: (row.rejection_reason || '').trim(),
-          candidate_drop_reason: (row.candidate_drop_reason || '').trim(),
+          interview_result: (row.interview_result || '').toString().trim(),
+          offer_status: (row.offer_status || '').toString().trim(),
+          joining_status: (row.joining_status || '').toString().trim(),
+          rejection_reason: (row.rejection_reason || '').toString().trim(),
+          candidate_drop_reason: (row.candidate_drop_reason || '').toString().trim(),
         }));
         rawData = rawData.filter(r => r.candidate_id);
         processProfiles();
+        console.log(`✅ Loaded ${rawData.length} records from API (MySQL database)`);
         return true;
       } catch (e) {
-        console.error('Data load error:', e);
+        console.error('API data load error:', e);
         document.getElementById('loadingOverlay').innerHTML =
           '<div style="text-align:center;color:#ef4444;"><h2 style="margin-bottom:12px;">Failed to load data</h2>' +
-          '<p style="color:#94a3b8">Ensure ats_recruiter_dataset_1000.csv is served from the same origin.<br>' +
-          'Run: <code style="color:#4f8ef7">npx serve .</code> in the project folder.</p></div>';
+          '<p style="color:#94a3b8">Ensure the Flask API server is running.<br>' +
+          'Run: <code style="color:#4f8ef7">python app.py</code> in the project folder.</p></div>';
         return false;
       }
     }
@@ -1825,12 +1832,22 @@
       });
     }
 
-    // ── 4. DEEP DIVE ──
-    function renderDeepDive(recruiterName) {
+    // ── 4. DEEP DIVE (uses Python ML backend via /api/analyze) ──
+    async function renderDeepDive(recruiterName) {
       const profile = recruiterProfiles.find(p => p.name === recruiterName);
       if (!profile) return;
 
-      const result = analyzeRecruiter(profile, recruiterProfiles);
+      // Call the real Python ML backend for analysis
+      let result;
+      try {
+        const resp = await fetch(API_BASE + '/api/analyze/' + encodeURIComponent(recruiterName));
+        if (!resp.ok) throw new Error(`API returned ${resp.status}`);
+        result = await resp.json();
+        console.log(`🧠 Deep dive: loaded Python ML analysis for ${recruiterName}`);
+      } catch (e) {
+        console.warn('API analyze failed, falling back to JS models:', e);
+        result = analyzeRecruiter(profile, recruiterProfiles);
+      }
 
       // Gauge
       const gaugeEl = document.getElementById('deepdiveGauge');
@@ -1950,7 +1967,7 @@
         .map(p => `<option value="${p.name}">${p.name}</option>`)
         .join('');
       sel.addEventListener('change', () => renderDeepDive(sel.value));
-      renderDeepDive(sel.value);
+      renderDeepDive(sel.value);  // async call
     }
 
     // ── 5. CLIENTS ──
@@ -2291,13 +2308,26 @@
       });
     }
 
-    // ── 9. AI INSIGHTS ──
-    function renderInsights() {
+    // ── 9. AI INSIGHTS (uses Python ML backend via /api/insights) ──
+    async function renderInsights() {
       const container = document.getElementById('insightsContent');
+      container.innerHTML = '<div style="text-align:center;padding:40px;color:var(--text-muted)">🧠 Loading ML insights from Python backend...</div>';
+
+      // Fetch real Python ML analysis for all recruiters
+      let teamScores;
+      try {
+        const resp = await fetch(API_BASE + '/api/insights');
+        if (!resp.ok) throw new Error(`API returned ${resp.status}`);
+        teamScores = await resp.json();
+        console.log(`🧠 Insights: loaded Python ML analysis for ${teamScores.length} recruiters`);
+      } catch (e) {
+        console.warn('API insights failed, falling back to JS models:', e);
+        teamScores = recruiterProfiles.map(p => ({ name: p.name, ...analyzeRecruiter(p, recruiterProfiles) }));
+      }
+
       let html = '';
 
       // Team summary
-      const teamScores = recruiterProfiles.map(p => ({ name: p.name, ...analyzeRecruiter(p, recruiterProfiles) }));
       const avgScore = teamScores.reduce((s, r) => s + r.overall_score, 0) / teamScores.length;
       const highRiskCount = teamScores.filter(r => r.risk_level === 'HIGH').length;
       const decliningCount = teamScores.filter(r => r.trend_forecast.trend === 'declining').length;
