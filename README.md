@@ -245,4 +245,3 @@ The application expects the following columns (case-insensitive, snake_case or c
 
 ---
 
-*Built as part of the UPES Internship Programme — Recruiter Performance Gap Analysis, May 2026.*
